@@ -15,6 +15,15 @@ using namespace std;
 class Simulator;
 
 Vec3 Road::roadColor = Vec3(0.3, 0.3, 0.3);
+Vec3 Road::sideColor = Vec3(0.18, 0.18, 0.18);
+Vec3 Road::curbColor = Vec3(0.55, 0.55, 0.50);
+Vec3 Road::markingColor = Vec3(0.9, 0.9, 0.85);
+Vec3 Road::groundColor = Vec3(0.06, 0.10, 0.04);
+
+const float Road::ROAD_DEPTH = 0.06f;
+const float Road::CURB_H = 0.025f;
+const float Road::CURB_W = 0.025f;
+const float Road::SIDEWALK_W = 0.08f;
 
 float Driveable::getLength() const
 {
@@ -129,23 +138,172 @@ Vec3 Driveable::getEndJointWidth(const bool dir) const
 
 void Driveable::draw()
 {
-    setColor(roadColor);
-
     Vec3 szer = Vec3::cross(Vec3(0,1,0), direction);
     szer.normalize();
-    szer *= 0.3;
+    float hw = 0.3f; // road half-width
+    szer *= hw;
 
-    Vec3 a = endPos + szer;
-    Vec3 b = endPos - szer;
-    Vec3 c = begPos + szer;
-    Vec3 d = begPos - szer;
+    // Road corners at top surface (y=0)
+    Vec3 a = endPos + szer;  // end-left
+    Vec3 b = endPos - szer;  // end-right
+    Vec3 c = begPos + szer;  // beg-left
+    Vec3 d = begPos - szer;  // beg-right
 
-    beginDraw(POLYGON);
+    float depth = -ROAD_DEPTH;
+
+    // ---- 1. Top surface (road asphalt) ----
+    setColor(roadColor);
+    beginDraw(QUADS);
     setNormal(0, -1, 0);
-    drawVertex(a);
-    drawVertex(b);
-    drawVertex(d);
-    drawVertex(c);
+    drawQuad(a, b, d, c);
+    endDraw();
+
+    // ---- 2. Left side wall ----
+    setColor(sideColor);
+    beginDraw(QUADS);
+    setNormal(normal.x, 0, normal.z);
+    drawQuad(c, a,
+             Vec3(a.x, depth, a.z),
+             Vec3(c.x, depth, c.z));
+    endDraw();
+
+    // ---- 3. Right side wall ----
+    beginDraw(QUADS);
+    setNormal(-normal.x, 0, -normal.z);
+    drawQuad(b, d,
+             Vec3(d.x, depth, d.z),
+             Vec3(b.x, depth, b.z));
+    endDraw();
+
+    // ---- 4. Bottom face ----
+    setColor(Vec3(0.12f, 0.12f, 0.12f));
+    beginDraw(QUADS);
+    setNormal(0, 1, 0);
+    drawQuad(Vec3(c.x, depth, c.z), Vec3(d.x, depth, d.z),
+             Vec3(b.x, depth, b.z), Vec3(a.x, depth, a.z));
+    endDraw();
+
+    // ---- 5. Curbs (raised edges) ----
+    Vec3 curbN = szer;
+    curbN.normalize();
+    curbN *= CURB_W;
+    float cy = CURB_H;
+
+    setColor(curbColor);
+
+    // Left curb - top face
+    beginDraw(QUADS);
+    setNormal(0, -1, 0);
+    drawQuad(Vec3(c.x, cy, c.z), Vec3(c.x - curbN.x, cy, c.z - curbN.z),
+             Vec3(a.x - curbN.x, cy, a.z - curbN.z), Vec3(a.x, cy, a.z));
+    endDraw();
+    // Left curb - outer face
+    beginDraw(QUADS);
+    setNormal(normal.x, 0, normal.z);
+    drawQuad(Vec3(c.x, cy, c.z), Vec3(a.x, cy, a.z),
+             a, c);
+    endDraw();
+    // Left curb - inner face
+    beginDraw(QUADS);
+    setNormal(-normal.x, 0, -normal.z);
+    drawQuad(Vec3(a.x - curbN.x, cy, a.z - curbN.z),
+             Vec3(c.x - curbN.x, cy, c.z - curbN.z),
+             Vec3(c.x - curbN.x, 0, c.z - curbN.z),
+             Vec3(a.x - curbN.x, 0, a.z - curbN.z));
+    endDraw();
+
+    // Right curb - top face
+    beginDraw(QUADS);
+    setNormal(0, -1, 0);
+    drawQuad(Vec3(d.x + curbN.x, cy, d.z + curbN.z), Vec3(d.x, cy, d.z),
+             Vec3(b.x, cy, b.z), Vec3(b.x + curbN.x, cy, b.z + curbN.z));
+    endDraw();
+    // Right curb - outer face
+    beginDraw(QUADS);
+    setNormal(-normal.x, 0, -normal.z);
+    drawQuad(Vec3(b.x, cy, b.z), Vec3(d.x, cy, d.z),
+             d, b);
+    endDraw();
+    // Right curb - inner face
+    beginDraw(QUADS);
+    setNormal(normal.x, 0, normal.z);
+    drawQuad(Vec3(d.x + curbN.x, cy, d.z + curbN.z),
+             Vec3(b.x + curbN.x, cy, b.z + curbN.z),
+             Vec3(b.x + curbN.x, 0, b.z + curbN.z),
+             Vec3(d.x + curbN.x, 0, d.z + curbN.z));
+    endDraw();
+
+    // ---- 6. Sidewalk strips ----
+    Vec3 swN = szer;
+    swN.normalize();
+    swN *= SIDEWALK_W;
+    float swY = CURB_H - 0.005f;
+
+    setColor(Vec3(0.45f, 0.44f, 0.40f));
+    // Left sidewalk
+    beginDraw(QUADS);
+    setNormal(0, -1, 0);
+    drawQuad(Vec3(c.x, swY, c.z),
+             Vec3(c.x + swN.x, swY, c.z + swN.z),
+             Vec3(a.x + swN.x, swY, a.z + swN.z),
+             Vec3(a.x, swY, a.z));
+    endDraw();
+    // Left sidewalk side wall
+    beginDraw(QUADS);
+    setNormal(normal.x, 0, normal.z);
+    drawQuad(Vec3(c.x + swN.x, swY, c.z + swN.z),
+             Vec3(a.x + swN.x, swY, a.z + swN.z),
+             Vec3(a.x + swN.x, depth, a.z + swN.z),
+             Vec3(c.x + swN.x, depth, c.z + swN.z));
+    endDraw();
+
+    // Right sidewalk
+    beginDraw(QUADS);
+    setNormal(0, -1, 0);
+    drawQuad(Vec3(d.x - swN.x, swY, d.z - swN.z),
+             Vec3(d.x, swY, d.z),
+             Vec3(b.x, swY, b.z),
+             Vec3(b.x - swN.x, swY, b.z - swN.z));
+    endDraw();
+    // Right sidewalk side wall
+    beginDraw(QUADS);
+    setNormal(-normal.x, 0, -normal.z);
+    drawQuad(Vec3(d.x - swN.x, swY, d.z - swN.z),
+             Vec3(b.x - swN.x, swY, b.z - swN.z),
+             Vec3(b.x - swN.x, depth, b.z - swN.z),
+             Vec3(d.x - swN.x, depth, d.z - swN.z));
+    endDraw();
+
+    // ---- 7. Lane markings ----
+    float markY = 0.002f;
+    // Dashed center line
+    setColor(markingColor);
+    int numDashes = (int)(length / 0.25f);
+    if (numDashes < 2) numDashes = 2;
+    beginDraw(LINES);
+    for (int i = 0; i < numDashes; i++)
+    {
+        if (i % 2 != 0) continue;
+        float t0 = (float)i / (float)numDashes;
+        float t1 = (float)(i + 1) / (float)numDashes;
+        Vec3 p0 = Vec3::lerp(begPos, endPos, t0);
+        Vec3 p1 = Vec3::lerp(begPos, endPos, t1);
+        drawVertex(Vec3(p0.x, markY, p0.z));
+        drawVertex(Vec3(p1.x, markY, p1.z));
+    }
+    endDraw();
+
+    // Solid edge lines
+    setColor(Vec3(0.8f, 0.8f, 0.75f));
+    float edgeOff = hw - 0.02f;
+    Vec3 edgeN = szer;
+    edgeN.normalize();
+    edgeN *= edgeOff;
+    beginDraw(LINES);
+    drawVertex(Vec3(begPos.x + edgeN.x, markY, begPos.z + edgeN.z));
+    drawVertex(Vec3(endPos.x + edgeN.x, markY, endPos.z + edgeN.z));
+    drawVertex(Vec3(begPos.x - edgeN.x, markY, begPos.z - edgeN.z));
+    drawVertex(Vec3(endPos.x - edgeN.x, markY, endPos.z - edgeN.z));
     endDraw();
 }
 
@@ -385,8 +543,78 @@ Vec3 Cross::OneStreet::getJointPos()
 
 void Cross::draw()
 {
+    float a = 0.3f;  // half-size (matching 0.6 tile)
+    float depth = -ROAD_DEPTH;
+    float cy = CURB_H;
+    float markY = 0.002f;
+
+    // ---- 1. Top surface ----
     setColor(roadColor);
-    drawTile(0.6);
+    beginDraw(QUADS);
+    setNormal(0, -1, 0);
+    drawQuad(Vec3(-a, 0, -a), Vec3(a, 0, -a), Vec3(a, 0, a), Vec3(-a, 0, a));
+    endDraw();
+
+    // ---- 2. Four side walls ----
+    setColor(sideColor);
+    // Front (-Z face)
+    beginDraw(QUADS);
+    setNormal(0, 0, -1);
+    drawQuad(Vec3(-a, 0, -a), Vec3(a, 0, -a),
+             Vec3(a, depth, -a), Vec3(-a, depth, -a));
+    endDraw();
+    // Back (+Z face)
+    beginDraw(QUADS);
+    setNormal(0, 0, 1);
+    drawQuad(Vec3(a, 0, a), Vec3(-a, 0, a),
+             Vec3(-a, depth, a), Vec3(a, depth, a));
+    endDraw();
+    // Left (-X face)
+    beginDraw(QUADS);
+    setNormal(-1, 0, 0);
+    drawQuad(Vec3(-a, 0, a), Vec3(-a, 0, -a),
+             Vec3(-a, depth, -a), Vec3(-a, depth, a));
+    endDraw();
+    // Right (+X face)
+    beginDraw(QUADS);
+    setNormal(1, 0, 0);
+    drawQuad(Vec3(a, 0, -a), Vec3(a, 0, a),
+             Vec3(a, depth, a), Vec3(a, depth, -a));
+    endDraw();
+
+    // ---- 3. Bottom face ----
+    setColor(Vec3(0.12f, 0.12f, 0.12f));
+    beginDraw(QUADS);
+    setNormal(0, 1, 0);
+    drawQuad(Vec3(-a, depth, -a), Vec3(a, depth, -a),
+             Vec3(a, depth, a), Vec3(-a, depth, a));
+    endDraw();
+
+    // ---- 4. Corner curb posts ----
+    float cp = a + 0.01f;
+    float cpSize = CURB_W;
+    setColor(curbColor);
+    for (int cx = -1; cx <= 1; cx += 2)
+    {
+        for (int cz = -1; cz <= 1; cz += 2)
+        {
+            pushMatrix();
+            translate(cx * cp, cy * 0.5f, cz * cp);
+            drawCube(cpSize, cy, cpSize);
+            popMatrix();
+        }
+    }
+
+    // ---- 5. Subtle crosshatch marking ----
+    setColor(Vec3(0.35f, 0.35f, 0.35f));
+    beginDraw(LINES);
+    float step = 0.12f;
+    for (float s = -a + step; s < a; s += step)
+    {
+        drawVertex(Vec3(s, markY, -a)); drawVertex(Vec3(s, markY, a));
+        drawVertex(Vec3(-a, markY, s)); drawVertex(Vec3(a, markY, s));
+    }
+    endDraw();
 }
 
 void CrossLights::setDefaultPriority(Driveable *s0, Driveable *s1, Driveable *s2, Driveable *s3)
