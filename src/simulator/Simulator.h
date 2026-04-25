@@ -75,7 +75,21 @@ private:
     unsigned int cameraDirection;
     float cameraVelocity;
 
+    // Derived camera vectors (recomputed from yaw/pitch)
+    Vec3 cameraFront;
+    Vec3 cameraRight;
+    Vec3 cameraUp;
+
+    float moveSpeed;
+    float mouseSensitivity;
+
+    // Projection mode
+    bool projectionOrtho;
+    float orthoZoom;
+
     void cameraMove(const float delta);
+    void updateCameraVectors();
+    void setupProjection();
 
     const float CAMERA_VELOCITY;
 };

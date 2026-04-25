@@ -27,6 +27,15 @@ class Road : public GameObject
 {
 public:
     static Vec3 roadColor;
+    static Vec3 sideColor;      // side wall color (darker)
+    static Vec3 curbColor;      // curb concrete color
+    static Vec3 markingColor;   // lane marking color
+    static Vec3 groundColor;    // ground plane color
+
+    static const float ROAD_DEPTH;  // depth below y=0
+    static const float CURB_H;      // curb height above y=0
+    static const float CURB_W;      // curb width
+    static const float SIDEWALK_W;  // sidewalk width beyond curb
 protected:
     virtual ~Road(){};
 };

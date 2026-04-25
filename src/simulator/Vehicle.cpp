@@ -477,10 +477,11 @@ void Car::draw()
 {
     translate(0, -0.02, 0);
 
+    // Blinkers (existing logic preserved)
     if (blinker.which < 0 && blinker.isLighting)
     {
         pushMatrix();
-        translate(0,0.05,-0.038);
+        translate(0,0.05,-0.045);
         setColor(blinkerColor);
         drawCube(0.22,0.02,0.01);
         popMatrix();
@@ -488,39 +489,67 @@ void Car::draw()
     if (blinker.which > 0 && blinker.isLighting)
     {
         pushMatrix();
-        translate(0,0.05,0.038);
+        translate(0,0.05,0.045);
         setColor(blinkerColor);
         drawCube(0.22,0.02,0.01);
         popMatrix();
     }
 
+    // Brake lights
     if (isBraking)
     {
         setColor(1,0,0);
-
         pushMatrix();
         translate(-0.05,0.08,0);
         drawCube(0.07,0.003,0.04);
         popMatrix();
 
         pushMatrix();
-        translate(-0.05,0.05,0.033);
+        translate(-0.05,0.05,0.04);
         drawCube(0.12,0.01,0.01);
         popMatrix();
 
         pushMatrix();
-        translate(-0.05,0.05,-0.033);
+        translate(-0.05,0.05,-0.04);
         drawCube(0.12,0.01,0.01);
         popMatrix();
     }
+
+    // --- Wheels (4 dark cylinders approximated as small cubes) ---
+    setColor(0.15f, 0.15f, 0.15f);
+    // Front-left
+    pushMatrix(); translate(0.06, 0.015, 0.05); drawCube(0.03, 0.03, 0.015); popMatrix();
+    // Front-right
+    pushMatrix(); translate(0.06, 0.015, -0.05); drawCube(0.03, 0.03, 0.015); popMatrix();
+    // Rear-left
+    pushMatrix(); translate(-0.06, 0.015, 0.05); drawCube(0.03, 0.03, 0.015); popMatrix();
+    // Rear-right
+    pushMatrix(); translate(-0.06, 0.015, -0.05); drawCube(0.03, 0.03, 0.015); popMatrix();
+
+    // --- Main body (taller than original) ---
     setColor(color);
-
     pushMatrix();
-    translate(0,0.05,0);
-    drawCube(0.2,0.05,0.1);
-    drawRoof();
+    translate(0, 0.055, 0);
+    drawCube(0.20, 0.07, 0.10);
 
+    // --- Roof / cabin ---
+    drawRoof();
     popMatrix();
+
+    // --- Headlights (front, white) ---
+    setColor(0.95f, 0.95f, 0.8f);
+    pushMatrix(); translate(0.10, 0.05, 0.035); drawCube(0.01, 0.015, 0.02); popMatrix();
+    pushMatrix(); translate(0.10, 0.05, -0.035); drawCube(0.01, 0.015, 0.02); popMatrix();
+
+    // --- Taillights (rear, dark red) ---
+    setColor(0.6f, 0.0f, 0.0f);
+    pushMatrix(); translate(-0.10, 0.05, 0.035); drawCube(0.01, 0.015, 0.02); popMatrix();
+    pushMatrix(); translate(-0.10, 0.05, -0.035); drawCube(0.01, 0.015, 0.02); popMatrix();
+
+    // --- Bumpers (front and rear, darker shade) ---
+    setColor(color * 0.6f);
+    pushMatrix(); translate(0.105, 0.035, 0); drawCube(0.01, 0.025, 0.09); popMatrix();
+    pushMatrix(); translate(-0.105, 0.035, 0); drawCube(0.01, 0.025, 0.09); popMatrix();
 }
 
 void Car::drawRoof()
@@ -535,13 +564,15 @@ void Car::drawRoof()
     Vec3 a8(0.1125,0,0.05);
 
     pushMatrix();
-    translate(-0.075, 0.025, 0);
+    translate(-0.075, 0.035, 0);
     beginDraw(QUADS);
 
+    // Roof top
+    setColor(color);
     drawQuad(a2,a6,a7,a3);
 
-    setColor(0,1,1);
-
+    // Windows (cyan/tinted)
+    setColor(0.1f, 0.7f, 0.75f);
     drawQuad(a1,a2,a3,a4);
     drawQuad(a1,a5,a6,a2);
     drawQuad(a5,a8,a7,a6);
@@ -585,47 +616,81 @@ void Bus::draw()
 {
     pushMatrix();
 
-    translate(0,0.07,0);
+    translate(0,0.08,0);
 
+    // --- Wheels (6 dark cubes: 4 main + 2 rear axle) ---
+    setColor(0.12f, 0.12f, 0.12f);
+    pushMatrix(); translate(0.25, -0.06, 0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
+    pushMatrix(); translate(0.25, -0.06, -0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
+    pushMatrix(); translate(-0.25, -0.06, 0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
+    pushMatrix(); translate(-0.25, -0.06, -0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
+    pushMatrix(); translate(0.0, -0.06, 0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
+    pushMatrix(); translate(0.0, -0.06, -0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
+
+    // --- Rear segment ---
     setColor(color);
     pushMatrix();
     rotateY(-busAngle / 1.3);
     translate(-0.2,0,0);
-    drawCube(0.3,0.13,0.135);
-    setColor(0,0.8,0.8);
-    translate(-0.02,0.02,0);
-    drawCube(0.25,0.07,0.14);
+    drawCube(0.30, 0.15, 0.14);
+    // Windows
+    setColor(0.1f, 0.6f, 0.65f);
+    translate(-0.02,0.025,0);
+    drawCube(0.25,0.08,0.145);
     popMatrix();
 
+    // --- Front segment ---
     setColor(color);
     pushMatrix();
-
     rotateY(busAngle / 4);
     translate(0.2,0,0);
-    drawCube(0.3, 0.13, 0.135);
-    setColor(0,0.8,0.8);
-    translate(0.02,0.02,0);
-    drawCube(0.27,0.07,0.14);
+    drawCube(0.30, 0.15, 0.14);
+    // Windows
+    setColor(0.1f, 0.6f, 0.65f);
+    translate(0.02,0.025,0);
+    drawCube(0.27,0.08,0.145);
     popMatrix();
 
-    setColor(0.5,0.5,0);
-    drawCube(0.2,0.12,0.12);
+    // --- Articulation connector ---
+    setColor(0.4f, 0.4f, 0.0f);
+    drawCube(0.2,0.13,0.12);
 
+    // --- Front destination display ---
+    pushMatrix();
+    rotateY(busAngle / 4);
+    setColor(0.9f, 0.6f, 0.1f);
+    translate(0.35, 0.04, 0);
+    drawCube(0.01, 0.04, 0.08);
+    popMatrix();
+
+    // --- Headlights ---
+    setColor(0.95f, 0.95f, 0.8f);
+    pushMatrix();
+    rotateY(busAngle / 4);
+    translate(0.35, -0.02, 0.05); drawCube(0.01, 0.02, 0.02);
+    popMatrix();
+    pushMatrix();
+    rotateY(busAngle / 4);
+    translate(0.35, -0.02, -0.05); drawCube(0.01, 0.02, 0.02);
+    popMatrix();
+
+    // --- Blinkers ---
     pushMatrix();
     if (blinker.which < 0 && blinker.isLighting)
     {
         setColor(blinkerColor);
-        translate(0, -0.031,-0.046);
+        translate(0, -0.031,-0.055);
         drawCube(0.73,0.01,0.01);
     }
     if (blinker.which > 0 && blinker.isLighting)
     {
         setColor(blinkerColor);
-        translate(0, -0.031,0.046);
+        translate(0, -0.031,0.055);
         drawCube(0.73,0.01,0.01);
     }
     popMatrix();
 
+    // --- Brake lights ---
     if (isBraking)
     {
         pushMatrix();
@@ -638,12 +703,12 @@ void Bus::draw()
         popMatrix();
 
         pushMatrix();
-        translate(-0.3,-0.02,0.04);
+        translate(-0.3,-0.02,0.05);
         drawCube(0.12,0.01,0.01);
         popMatrix();
 
         pushMatrix();
-        translate(-0.3,-0.02,-0.04);
+        translate(-0.3,-0.02,-0.05);
         drawCube(0.12,0.01,0.01);
         popMatrix();
         popMatrix();

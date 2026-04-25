@@ -31,11 +31,53 @@ Garage::Garage(Vec3 p, Cross *c) : Driveable(p, c)
 
 void Garage::draw()
 {
-    setColor(0.5, 0 ,0);
+    // --- Main building structure ---
+    setColor(0.5, 0 ,0);  // dark red - preserved per constraint
     pushMatrix();
-    translate(0,0.2,0);
+    translate(0, 0.3 + CURB_H, 0);
     rotateY(direction.angleXZ());
-    drawCube(0.7, 0.4, 1);
+    drawCube(0.7, 0.6, 1);
+
+    // --- Roof cap (slightly lighter, thinner) ---
+    setColor(0.4f, 0.05f, 0.05f);
+    pushMatrix();
+    translate(0, 0.31, 0);
+    drawCube(0.72, 0.02, 1.02);
+    popMatrix();
+
+    // --- Front door/entrance ---
+    setColor(0.25f, 0.15f, 0.08f);
+    pushMatrix();
+    translate(-0.36, -0.15, 0);
+    drawCube(0.01, 0.25, 0.2);
+    popMatrix();
+
+    // --- Window grid (front face) ---
+    setColor(0.3f, 0.5f, 0.55f);
+    for (int row = 0; row < 2; row++)
+    {
+        for (int col = -1; col <= 1; col++)
+        {
+            if (row == 0 && col == 0) continue; // skip where door is
+            pushMatrix();
+            translate(-0.36, -0.05 + row * 0.2, col * 0.25);
+            drawCube(0.01, 0.1, 0.12);
+            popMatrix();
+        }
+    }
+
+    // --- Side windows ---
+    for (int side = -1; side <= 1; side += 2)
+    {
+        for (int i = 0; i < 3; i++)
+        {
+            pushMatrix();
+            translate(-0.15 + i * 0.2, 0.05, side * 0.51);
+            drawCube(0.12, 0.12, 0.01);
+            popMatrix();
+        }
+    }
+
     popMatrix();
 
     translate(-pos);
