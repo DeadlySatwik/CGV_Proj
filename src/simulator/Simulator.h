@@ -29,8 +29,11 @@ public:
 
     void run();
 
-    // Player car
-    PlayerCar *playerCar;
+    // Player car/bus/bike
+    std::vector<PlayerCar*> playerVehicles;
+    PlayerCar *activePlayerVeh;
+    int currentVehicleIdx;
+    
     bool thirdPersonMode;
     unsigned int playerInputMap;
 

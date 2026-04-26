@@ -416,3 +416,205 @@ void PlayerCar::drawRoof()
 
     popMatrix();
 }
+
+// ========== PlayerBus Implementation ==========
+
+PlayerBus::PlayerBus(Vec3 startPos) : PlayerCar(startPos)
+{
+    acceleration = 1.2f;
+    maxSpeed = 2.2f;
+    turnSpeed = 65.0f; // slower turning
+    friction = 0.8f;
+    carColor = Vec3(0.9f, 0.2f, 0.15f); // Red bus
+    id = "PLAYER_BUS";
+}
+
+Vec3 PlayerBus::getCameraPos() const
+{
+    Vec3 fwd = getForward();
+    float camDist = 28.0f;
+    float camHeight = 12.0f;
+    float glX = pos.x * 10.0f;
+    float glY = pos.y * 10.0f;
+    float glZ = pos.z * -10.0f;
+    Vec3 camPos;
+    camPos.x = glX - fwd.x * camDist;
+    camPos.y = glY + camHeight;
+    camPos.z = glZ - (-fwd.z) * camDist;
+    return camPos;
+}
+
+Vec3 PlayerBus::getCameraTarget() const
+{
+    Vec3 fwd = getForward();
+    float lookAhead = 15.0f;
+    float glX = pos.x * 10.0f;
+    float glY = pos.y * 10.0f;
+    float glZ = pos.z * -10.0f;
+    Vec3 target;
+    target.x = glX + fwd.x * lookAhead;
+    target.y = glY + 3.0f;
+    target.z = glZ + (-fwd.z) * lookAhead;
+    return target;
+}
+
+void PlayerBus::draw()
+{
+    translate(0, -0.02, 0);
+
+    // WHEELS
+    for (int lr = -1; lr <= 1; lr += 2)
+    {
+        for (int fb = -1; fb <= 1; fb += 2)
+        {
+            float wx = fb * 0.18f;
+            float wz = lr * 0.052f;
+            setColor(0.10f, 0.10f, 0.10f);
+            pushMatrix();
+            translate(wx, 0.02f, wz);
+            drawCube(0.04f, 0.04f, 0.018f);
+            popMatrix();
+            setColor(0.65f, 0.65f, 0.68f);
+            pushMatrix();
+            translate(wx, 0.02f, wz + lr * 0.01f);
+            drawCube(0.025f, 0.025f, 0.003f);
+            popMatrix();
+        }
+    }
+
+    // BODY
+    setColor(carColor);
+    pushMatrix();
+    translate(0, 0.08f, 0);
+    drawCube(0.5f, 0.12f, 0.11f);
+    popMatrix();
+
+    // WINDOWS
+    setColor(0.15f, 0.2f, 0.25f);
+    pushMatrix();
+    translate(0.252f, 0.09f, 0);
+    drawCube(0.002f, 0.06f, 0.09f); // front
+    popMatrix();
+    
+    for (int side = -1; side <= 1; side += 2)
+    {
+        for (int w = 0; w < 4; w++)
+        {
+            pushMatrix();
+            translate(0.15f - w * 0.1f, 0.09f, side * 0.056f);
+            drawCube(0.08f, 0.05f, 0.002f);
+            popMatrix();
+        }
+    }
+
+    // HEADLIGHTS
+    setColor(0.95f, 0.93f, 0.80f);
+    pushMatrix();
+    translate(0.251f, 0.04f, 0.04f);
+    drawCube(0.002f, 0.015f, 0.02f);
+    popMatrix();
+    pushMatrix();
+    translate(0.251f, 0.04f, -0.04f);
+    drawCube(0.002f, 0.015f, 0.02f);
+    popMatrix();
+
+    // TAILLIGHTS
+    setColor(0.8f, 0.1f, 0.1f);
+    pushMatrix();
+    translate(-0.251f, 0.05f, 0.04f);
+    drawCube(0.002f, 0.02f, 0.015f);
+    popMatrix();
+    pushMatrix();
+    translate(-0.251f, 0.05f, -0.04f);
+    drawCube(0.002f, 0.02f, 0.015f);
+    popMatrix();
+}
+
+// ========== PlayerBike Implementation ==========
+
+PlayerBike::PlayerBike(Vec3 startPos) : PlayerCar(startPos)
+{
+    acceleration = 4.5f;
+    maxSpeed = 4.5f;
+    turnSpeed = 160.0f; // fast turning
+    friction = 1.0f;
+    carColor = Vec3(0.2f, 0.8f, 0.2f); // Green bike
+    id = "PLAYER_BIKE";
+}
+
+Vec3 PlayerBike::getCameraPos() const
+{
+    Vec3 fwd = getForward();
+    float camDist = 12.0f;
+    float camHeight = 5.0f;
+    float glX = pos.x * 10.0f;
+    float glY = pos.y * 10.0f;
+    float glZ = pos.z * -10.0f;
+    Vec3 camPos;
+    camPos.x = glX - fwd.x * camDist;
+    camPos.y = glY + camHeight;
+    camPos.z = glZ - (-fwd.z) * camDist;
+    return camPos;
+}
+
+Vec3 PlayerBike::getCameraTarget() const
+{
+    Vec3 fwd = getForward();
+    float lookAhead = 8.0f;
+    float glX = pos.x * 10.0f;
+    float glY = pos.y * 10.0f;
+    float glZ = pos.z * -10.0f;
+    Vec3 target;
+    target.x = glX + fwd.x * lookAhead;
+    target.y = glY + 1.0f;
+    target.z = glZ + (-fwd.z) * lookAhead;
+    return target;
+}
+
+void PlayerBike::draw()
+{
+    translate(0, -0.02, 0);
+
+    // WHEELS (2 wheels inline)
+    setColor(0.10f, 0.10f, 0.10f);
+    pushMatrix();
+    translate(0.045f, 0.016f, 0);
+    drawCube(0.032f, 0.032f, 0.01f);
+    popMatrix();
+    pushMatrix();
+    translate(-0.045f, 0.016f, 0);
+    drawCube(0.032f, 0.032f, 0.01f);
+    popMatrix();
+
+    // Rims
+    setColor(0.65f, 0.65f, 0.68f);
+    for(int i=-1; i<=1; i+=2) {
+        for(int j=-1; j<=1; j+=2) {
+            pushMatrix();
+            translate(i*0.045f, 0.016f, j*0.006f);
+            drawCube(0.018f, 0.018f, 0.002f);
+            popMatrix();
+        }
+    }
+
+    // BODY
+    setColor(carColor);
+    pushMatrix();
+    translate(0, 0.035f, 0);
+    drawCube(0.08f, 0.03f, 0.02f);
+    popMatrix();
+
+    // HANDLEBARS
+    setColor(0.1f, 0.1f, 0.1f);
+    pushMatrix();
+    translate(0.03f, 0.055f, 0);
+    drawCube(0.01f, 0.01f, 0.05f);
+    popMatrix();
+
+    // HEADLIGHT
+    setColor(0.95f, 0.93f, 0.80f);
+    pushMatrix();
+    translate(0.041f, 0.04f, 0);
+    drawCube(0.002f, 0.01f, 0.01f);
+    popMatrix();
+}

@@ -1336,3 +1336,118 @@ void Bus::draw()
 
     popMatrix();
 }
+
+Bike::Bike(Driveable *spawnRoad) : Vehicle(spawnRoad)
+{
+    velocity = randFloat(2.5, 5.5);
+    specs.maxV = randFloat(1.5, 2.2);
+    specs.minV = randFloat(0.04, 0.1);
+    specs.cornerVelocity = 1.6;
+    specs.stopTime = randFloat(0.2, 0.4);
+    specs.acceleration = randFloat(0.3, 0.5);
+    specs.vehicleLength = 0.1;
+    specs.remainDst = randFloat(0.04, 0.06);
+}
+
+void Bike::update(float delta)
+{
+    Vehicle::update(delta);
+}
+
+void Bike::draw()
+{
+    translate(0, -0.02, 0);
+
+    // ========== BLINKERS ==========
+    if (blinker.which < 0 && blinker.isLighting)
+    {
+        pushMatrix();
+        translate(0, 0.04, -0.015);
+        setColor(blinkerColor);
+        drawCube(0.06, 0.01, 0.005);
+        popMatrix();
+    }
+    if (blinker.which > 0 && blinker.isLighting)
+    {
+        pushMatrix();
+        translate(0, 0.04, 0.015);
+        setColor(blinkerColor);
+        drawCube(0.06, 0.01, 0.005);
+        popMatrix();
+    }
+
+    // BRAKE LIGHT
+    if (isBraking)
+    {
+        setColor(1, 0, 0);
+        pushMatrix();
+        translate(-0.04, 0.04, 0);
+        drawCube(0.01, 0.01, 0.02);
+        popMatrix();
+    }
+
+    // WHEELS (2 wheels inline)
+    setColor(0.10f, 0.10f, 0.10f);
+    pushMatrix();
+    translate(0.045f, 0.016f, 0);
+    drawCube(0.032f, 0.032f, 0.01f);
+    popMatrix();
+    pushMatrix();
+    translate(-0.045f, 0.016f, 0);
+    drawCube(0.032f, 0.032f, 0.01f);
+    popMatrix();
+
+    // Rims
+    setColor(0.65f, 0.65f, 0.68f);
+    pushMatrix();
+    translate(0.045f, 0.016f, 0.006f);
+    drawCube(0.018f, 0.018f, 0.002f);
+    popMatrix();
+    pushMatrix();
+    translate(0.045f, 0.016f, -0.006f);
+    drawCube(0.018f, 0.018f, 0.002f);
+    popMatrix();
+    pushMatrix();
+    translate(-0.045f, 0.016f, 0.006f);
+    drawCube(0.018f, 0.018f, 0.002f);
+    popMatrix();
+    pushMatrix();
+    translate(-0.045f, 0.016f, -0.006f);
+    drawCube(0.018f, 0.018f, 0.002f);
+    popMatrix();
+
+    // BODY
+    setColor(color);
+    pushMatrix();
+    translate(0, 0.035f, 0);
+    drawCube(0.08f, 0.03f, 0.02f);
+    popMatrix();
+
+    // HANDLEBARS
+    setColor(0.1f, 0.1f, 0.1f);
+    pushMatrix();
+    translate(0.03f, 0.055f, 0);
+    drawCube(0.01f, 0.01f, 0.05f);
+    popMatrix();
+
+    // HEADLIGHT
+    int carPhase = Simulator::getInstance().getDayPhase();
+    bool nightDriving = (carPhase == 0 || carPhase == 1 || carPhase == 5 || carPhase == 6);
+    if (nightDriving)
+        setColor(1.0f, 0.98f, 0.85f);
+    else
+        setColor(0.95f, 0.93f, 0.80f);
+    pushMatrix();
+    translate(0.041f, 0.04f, 0);
+    drawCube(0.002f, 0.01f, 0.01f);
+    popMatrix();
+
+    if (nightDriving)
+    {
+        setColor(0.90f, 0.85f, 0.60f);
+        pushMatrix();
+        translate(0.08f, 0.035f, 0);
+        drawCube(0.08f, 0.008f, 0.015f);
+        popMatrix();
+    }
+}

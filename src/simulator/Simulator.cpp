@@ -274,13 +274,13 @@ void Simulator::redraw()
 
     Vec3 eyePos, eyeFront, eyeUp, eyeRight;
 
-    if (thirdPersonMode && playerCar)
+    if (thirdPersonMode && activePlayerVeh)
     {
         // 3rd person chase camera
-        eyePos = playerCar->getCameraPos();
+        eyePos = activePlayerVeh->getCameraPos();
 
         // Compute front from eye to target
-        Vec3 target = playerCar->getCameraTarget();
+        Vec3 target = activePlayerVeh->getCameraTarget();
         eyeFront = target - eyePos;
         eyeFront.normalize();
 
@@ -367,10 +367,10 @@ void Simulator::redraw()
         object->drawObject();
     }
 
-    // Draw the player car
-    if (playerCar)
+    // Draw the active player vehicle
+    if (activePlayerVeh)
     {
-        playerCar->drawObject();
+        activePlayerVeh->drawObject();
     }
 
     popMatrix();
@@ -533,6 +533,27 @@ void Simulator::keyPressed(char k)
         printTelemetry();
         break;
     }
+    case '1':
+    case '2':
+    case '3':
+    {
+        int newIdx = k - '1';
+        if (newIdx != currentVehicleIdx) {
+            PlayerCar *oldVeh = playerVehicles[currentVehicleIdx];
+            currentVehicleIdx = newIdx;
+            activePlayerVeh = playerVehicles[currentVehicleIdx];
+            
+            // Transfer state
+            activePlayerVeh->pos = oldVeh->pos;
+            activePlayerVeh->speed = oldVeh->speed;
+            activePlayerVeh->heading = oldVeh->heading;
+            activePlayerVeh->rot = oldVeh->rot;
+            activePlayerVeh->setOldPosition();
+            
+            cout << "Switched to vehicle " << (newIdx == 0 ? "Car" : (newIdx == 1 ? "Bus" : "Bike")) << endl;
+        }
+        break;
+    }
     }
 
     updatesPerFrame = max(MIN_UPDATES_PER_FRAME, min(updatesPerFrame, MAX_UPDATES_PER_FRAME));
@@ -588,25 +609,25 @@ void Simulator::mouseMove(const int dx, const int dy)
 void Simulator::singleUpdate(const float delta)
 {
     // Save position before move (for road constraint)
-    playerCar->setOldPosition();
+    activePlayerVeh->setOldPosition();
 
-    // Update player car input
-    playerCar->handleInput(playerInputMap, delta);
+    // Update player vehicle input
+    activePlayerVeh->handleInput(playerInputMap, delta);
     playerInputMap = 0;
 
     float sampledRoadHeight = 0.0f;
-    bool onRoad = sampleRoadHeight(playerCar->getPos(), sampledRoadHeight);
+    bool onRoad = sampleRoadHeight(activePlayerVeh->getPos(), sampledRoadHeight);
 
     // Road/end constraint + collision constraint
-    if (!onRoad || isPlayerBlocked(playerCar->getPos()))
+    if (!onRoad || isPlayerBlocked(activePlayerVeh->getPos()))
     {
-        playerCar->revertPosition();
+        activePlayerVeh->revertPosition();
     }
     else
     {
-        Vec3 correctedPos = playerCar->getPos();
+        Vec3 correctedPos = activePlayerVeh->getPos();
         correctedPos.y = sampledRoadHeight;
-        playerCar->setPos(correctedPos);
+        activePlayerVeh->setPos(correctedPos);
     }
 
     if (!thirdPersonMode)

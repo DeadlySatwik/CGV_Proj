@@ -116,6 +116,7 @@ void ObjectsLoader::loadRoad(const string fileName)
 
                          if (vehType.compare("C") == 0 || vehType.compare("CAR") == 0) temp = new GarageCar(v, cross);
                     else if (vehType.compare("B") == 0 || vehType.compare("BUS") == 0) temp = new GarageBus(v, cross);
+                    else if (vehType.compare("K") == 0 || vehType.compare("BIKE") == 0) temp = new GarageBike(v, cross);
 
                     if (temp == nullptr) throw ExceptionClass("failed to create garage " + id + " of vehicle type " + vehType);
 

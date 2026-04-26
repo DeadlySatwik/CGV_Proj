@@ -10,6 +10,7 @@ class PlayerCar : public GameObject
 {
 public:
     PlayerCar(Vec3 startPos);
+    virtual ~PlayerCar() {}
 
     // Input bit flags
     enum InputFlag
@@ -23,8 +24,8 @@ public:
     void handleInput(unsigned int inputMap, const float delta);
 
     // Camera helpers for 3rd person view
-    Vec3 getCameraPos() const;
-    Vec3 getCameraTarget() const;
+    virtual Vec3 getCameraPos() const;
+    virtual Vec3 getCameraTarget() const;
     Vec3 getForward() const;
 
     // Road constraint — set by Simulator before handleInput
@@ -34,7 +35,7 @@ public:
     float speed;
     float heading;       // yaw in degrees (math convention: 0 = +X, increases CCW)
 
-private:
+protected:
     float acceleration;
     float maxSpeed;
     float turnSpeed;
@@ -43,9 +44,29 @@ private:
     Vec3  oldPos;        // for road constraint rollback
     float oldHeading;
 
-    void update(const float delta) override;
-    void draw() override;
+    virtual void update(const float delta) override;
+    virtual void draw() override;
     void drawRoof();
+};
+
+class PlayerBus : public PlayerCar
+{
+public:
+    PlayerBus(Vec3 startPos);
+    Vec3 getCameraPos() const override;
+    Vec3 getCameraTarget() const override;
+protected:
+    void draw() override;
+};
+
+class PlayerBike : public PlayerCar
+{
+public:
+    PlayerBike(Vec3 startPos);
+    Vec3 getCameraPos() const override;
+    Vec3 getCameraTarget() const override;
+protected:
+    void draw() override;
 };
 
 #endif // PLAYERCAR_H
