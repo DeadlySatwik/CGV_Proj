@@ -2,6 +2,7 @@
 
 #include "Simulator.h"
 #include "Environment.h"
+#include "ExamManager.h"
 using namespace std;
 
 // ===== Day/Night static data =====
@@ -373,6 +374,8 @@ void Simulator::redraw()
         activePlayerVeh->drawObject();
     }
 
+    modeManager.draw();
+
     popMatrix();
 }
 
@@ -438,6 +441,9 @@ void Simulator::keyHeld(char k)
         case 'l':
             playerInputMap |= PlayerCar::INPUT_STEER_RIGHT;
             break;
+        case 'h':
+            playerInputMap |= PlayerCar::INPUT_HORN;
+            break;
         }
         return; // Don't move free camera while driving
     }
@@ -493,21 +499,36 @@ void Simulator::keyPressed(char k)
 
     switch (k)
     {
+    case 'r':
+        modeManager.toggleMode();
+        break;
+    case 'v':
+        if (modeManager.getMode() == ModeManager::TRAINING) {
+            modeManager.getTrainingManager().cycleLesson();
+        } else {
+            cout << "\n[INFO] Switch to Training Mode (R) first to change lessons." << endl;
+        }
+        break;
     case 'y':
         updatesPerFrame++;
         break;
     case 't':
         updatesPerFrame--;
         break;
-    case 'h':
+    case ']':
         timeScale += 0.1;
         break;
-    case 'g':
+    case '[':
         timeScale -= 0.1;
         break;
-    case 'p':
+    case 'o':
         projectionOrtho = !projectionOrtho;
         cout << "Projection: " << (projectionOrtho ? "Orthographic" : "Perspective") << endl;
+        break;
+    case 'p':
+        if (modeManager.getMode() == ModeManager::TRAINING) {
+            modeManager.getTrainingManager().tryPark(activePlayerVeh);
+        }
         break;
     case 'f':
         thirdPersonMode = !thirdPersonMode;
@@ -642,7 +663,7 @@ void Simulator::singleUpdate(const float delta)
 
     // Evaluate rules for the active player vehicle
     Driveable* currentRoad = getRoadAt(activePlayerVeh->getPos());
-    ruleManager.update(activePlayerVeh, objects, delta, currentRoad);
+    modeManager.update(activePlayerVeh, objects, delta, currentRoad);
 
     updateWorldTime(delta); // advance world clock
 }
@@ -906,18 +927,51 @@ void Simulator::printTelemetry() const
     int h = (int)worldTime;
     int m = (int)((worldTime - h) * 60);
     
-    std::string warnStr = ruleManager.getCurrentWarning();
-    if (!warnStr.empty()) {
-        warnStr = " | WARNING: " + warnStr;
+    if (modeManager.getMode() == ModeManager::BASIC_DRIVING)
+    {
+        cout << "[" << (h < 10 ? "0" : "") << h << ":" << (m < 10 ? "0" : "") << m << "] "
+             << phaseNames[dayPhase]
+             << " | [BASIC DRIVING MODE] Free Roam"
+             << " | Active: " << getActiveVehicleCount()
+             << " | Objs: " << objects.size()
+             << " | Cam: " << (thirdPersonMode ? "3rd" : "Free")
+             << endl;
     }
+    else if (modeManager.getMode() == ModeManager::TRAINING)
+    {
+        const TrainingManager& tm = modeManager.getTrainingManager();
+        std::string warnStr = tm.getCurrentWarning();
+        if (!warnStr.empty()) {
+            warnStr = " | WARNING: " + warnStr;
+        }
 
-    cout << "[" << (h < 10 ? "0" : "") << h << ":" << (m < 10 ? "0" : "") << m << "] "
-         << phaseNames[dayPhase]
-         << " | Score: " << ruleManager.getScore()
-         << " | " << ruleManager.getLastViolation()
-         << warnStr
-         << " | Active: " << getActiveVehicleCount()
-         << " | Objs: " << objects.size()
-         << " | Cam: " << (thirdPersonMode ? "3rd" : "Free")
-         << endl;
+        cout << "[" << (h < 10 ? "0" : "") << h << ":" << (m < 10 ? "0" : "") << m << "] "
+             << phaseNames[dayPhase]
+             << " | [TRAINING] Score: " << tm.getScore()
+             << " | Obj: " << tm.getObjective()
+             << " | " << tm.getLastViolation()
+             << warnStr
+             << " | Active: " << getActiveVehicleCount()
+             << " | Cam: " << (thirdPersonMode ? "3rd" : "Free")
+             << endl;
+    }
+    else if (modeManager.getMode() == ModeManager::EXAM)
+    {
+        const ExamManager& em = modeManager.getExamManager();
+        const TrainingManager& tm = modeManager.getTrainingManager();
+        std::string warnStr = tm.getCurrentWarning();
+        if (!warnStr.empty()) {
+            warnStr = " | WARNING: " + warnStr;
+        }
+
+        cout << "[" << (h < 10 ? "0" : "") << h << ":" << (m < 10 ? "0" : "") << m << "] "
+             << phaseNames[dayPhase]
+             << " | [EXAM] State: " << (em.getState() == ExamManager::IN_PROGRESS ? "IN PROGRESS" : 
+                                      (em.getState() == ExamManager::PASSED ? "PASSED" : 
+                                      (em.getState() == ExamManager::FAILED ? "FAILED" : "NOT STARTED")))
+             << warnStr
+             << " | Active: " << getActiveVehicleCount()
+             << " | Cam: " << (thirdPersonMode ? "3rd" : "Free")
+             << endl;
+    }
 }
