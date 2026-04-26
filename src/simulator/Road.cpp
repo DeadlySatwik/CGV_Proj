@@ -1,6 +1,5 @@
 ///   File: Road.cpp
 
-
 #include "Road.h"
 #include <cmath>
 using namespace std;
@@ -12,6 +11,10 @@ Vec3 Road::sideColor = Vec3(0.18, 0.18, 0.18);
 Vec3 Road::curbColor = Vec3(0.55, 0.55, 0.50);
 Vec3 Road::markingColor = Vec3(0.9, 0.9, 0.85);
 Vec3 Road::groundColor = Vec3(0.06, 0.10, 0.04);
+
+int Cross::telemetryForcedPasses = 0;
+int Cross::telemetryJamRecoveries = 0;
+int Cross::telemetryRLFallbacks = 0;
 
 const float Road::ROAD_DEPTH = 0.06f;
 const float Road::CURB_H = 0.025f;
@@ -41,7 +44,8 @@ Driveable::Driveable(Cross *begCross, Cross *endCross)
     temp.street = this;
 
     temp.direction = true;
-    begJoint = crossBeg->getPos() + direction * 0.3;;
+    begJoint = crossBeg->getPos() + direction * 0.3;
+    ;
     crossBeg->streets.push_back(temp);
 
     temp.direction = false;
@@ -58,7 +62,7 @@ Driveable::Driveable(Vec3 p, Cross *endCross)
 
     begPos = pos;
     endPos = crossEnd->getPos();
-    endPos.y = crossEnd->getIntersectionHeight();  // inject height
+    endPos.y = crossEnd->getIntersectionHeight(); // inject height
 
     commonConstructor();
 
@@ -83,7 +87,7 @@ void Driveable::commonConstructor()
 
     length = Vec3::dst(begPos, endPos);
 
-    normal = Vec3::cross(Vec3(0,1,0), direction);
+    normal = Vec3::cross(Vec3(0, 1, 0), direction);
     normal.normalize();
 
     reservedSpaceBeg = 0;
@@ -91,15 +95,35 @@ void Driveable::commonConstructor()
 }
 
 // ===== Height / Elevation accessors =====
-float Driveable::getHeightAt(float t) const {
-    return begHeight + (endHeight - begHeight) * t;
+float Driveable::getHeightAt(float t) const
+{
+    if (t < 0.0f)
+        t = 0.0f;
+    if (t > 1.0f)
+        t = 1.0f;
+
+    float h0 = begHeight;
+    float h1 = endHeight;
+    float dH = fabs(h1 - h0);
+
+    // Smooth ramp easing for elevation transitions to avoid stepped motion.
+    // Flat segments keep linear behavior.
+    float u = t;
+    if (dH > 0.02f)
+    {
+        u = t * t * (3.0f - 2.0f * t); // smoothstep
+    }
+
+    return h0 + (h1 - h0) * u;
 }
 float Driveable::getBegHeight() const { return begHeight; }
 float Driveable::getEndHeight() const { return endHeight; }
-bool Driveable::isElevated() const {
+bool Driveable::isElevated() const
+{
     return (begHeight > 0.05f || endHeight > 0.05f);
 }
-int Driveable::getCollisionLayer() const {
+int Driveable::getCollisionLayer() const
+{
     float maxH = (begHeight > endHeight) ? begHeight : endHeight;
     return (maxH > 0.3f) ? 1 : 0;
 }
@@ -108,19 +132,22 @@ float Driveable::freeSpace(const bool dir) const
 {
     if (dir)
     {
-        if (vehiclesBeg.size() == 0) return getLength() - reservedSpaceBeg - 0.2;
+        if (vehiclesBeg.size() == 0)
+            return getLength() - reservedSpaceBeg - 0.2;
 
         return vehiclesBeg.back()->getXPos() - reservedSpaceBeg - 0.2;
     }
 
-    if (vehiclesEnd.size() == 0) return getLength() - reservedSpaceEnd - 0.2;
+    if (vehiclesEnd.size() == 0)
+        return getLength() - reservedSpaceEnd - 0.2;
 
     return vehiclesEnd.back()->getXPos() - reservedSpaceEnd - 0.2;
 }
 
 Vec3 Driveable::getJointPoint(const bool dir) const
 {
-    if (dir) return begJoint;
+    if (dir)
+        return begJoint;
     return endJoint;
 }
 
@@ -145,7 +172,7 @@ Vec3 Driveable::getBegJointWidth(const bool dir) const
     {
         p = begJoint - normal * 0.1;
     }
-    p.y = begHeight;   // inject elevation
+    p.y = begHeight; // inject elevation
     return p;
 }
 
@@ -160,22 +187,22 @@ Vec3 Driveable::getEndJointWidth(const bool dir) const
     {
         p = endJoint - normal * 0.1;
     }
-    p.y = endHeight;   // inject elevation
+    p.y = endHeight; // inject elevation
     return p;
 }
 
 void Driveable::draw()
 {
-    Vec3 szer = Vec3::cross(Vec3(0,1,0), direction);
+    Vec3 szer = Vec3::cross(Vec3(0, 1, 0), direction);
     szer.normalize();
     float hw = 0.3f; // road half-width
     szer *= hw;
 
     // Road corners at top surface (y=0) - drawn from joint to joint to avoid crossing into intersections
-    Vec3 a = endJoint + szer;  // end-left
-    Vec3 b = endJoint - szer;  // end-right
-    Vec3 c = begJoint + szer;  // beg-left
-    Vec3 d = begJoint - szer;  // beg-right
+    Vec3 a = endJoint + szer; // end-left
+    Vec3 b = endJoint - szer; // end-right
+    Vec3 c = begJoint + szer; // beg-left
+    Vec3 d = begJoint - szer; // beg-right
 
     float depthA = endHeight - ROAD_DEPTH;
     float depthC = begHeight - ROAD_DEPTH;
@@ -281,7 +308,7 @@ void Driveable::draw()
                  Vec3(a.x, swY, a.z));
         endDraw();
         // Left sidewalk side wall
-    setColor(sideColor);
+        setColor(sideColor);
         beginDraw(QUADS);
         setNormal(normal.x, 0, normal.z);
         drawQuad(Vec3(c.x + swN.x, swY, c.z + swN.z),
@@ -291,7 +318,7 @@ void Driveable::draw()
         endDraw();
 
         // Right sidewalk
-    setColor(Vec3(0.45f, 0.44f, 0.40f));
+        setColor(Vec3(0.45f, 0.44f, 0.40f));
         beginDraw(QUADS);
         setNormal(0, -1, 0);
         drawQuad(Vec3(d.x - swN.x, swY, d.z - swN.z),
@@ -300,7 +327,7 @@ void Driveable::draw()
                  Vec3(b.x - swN.x, swY, b.z - swN.z));
         endDraw();
         // Right sidewalk side wall
-    setColor(sideColor);
+        setColor(sideColor);
         beginDraw(QUADS);
         setNormal(-normal.x, 0, -normal.z);
         drawQuad(Vec3(d.x - swN.x, swY, d.z - swN.z),
@@ -314,11 +341,13 @@ void Driveable::draw()
     setColor(markingColor);
     float jointLength = Vec3::dst(begJoint, endJoint);
     int numDashes = (int)(jointLength / 0.25f);
-    if (numDashes < 2) numDashes = 2;
+    if (numDashes < 2)
+        numDashes = 2;
     beginDraw(LINES);
     for (int i = 0; i < numDashes; i++)
     {
-        if (i % 2 != 0) continue;
+        if (i % 2 != 0)
+            continue;
         float t0 = (float)i / (float)numDashes;
         float t1 = (float)(i + 1) / (float)numDashes;
         Vec3 p0 = Vec3::lerp(begJoint, endJoint, t0);
@@ -355,7 +384,8 @@ void Driveable::drawElevatedSupports()
     // ---- Concrete pylons ----
     setColor(0.38f, 0.38f, 0.40f);
     int numPylons = (int)(length / 2.0f);
-    if (numPylons < 1) numPylons = 1;
+    if (numPylons < 1)
+        numPylons = 1;
 
     for (int p = 0; p <= numPylons; p++)
     {
@@ -383,13 +413,14 @@ void Driveable::drawElevatedSupports()
     }
 
     // ---- Railing posts (along both edges) ----
-    Vec3 szer = Vec3::cross(Vec3(0,1,0), direction);
+    Vec3 szer = Vec3::cross(Vec3(0, 1, 0), direction);
     szer.normalize();
-    float railOff = 0.28f;  // just inside the road edge
+    float railOff = 0.28f; // just inside the road edge
 
-    setColor(0.50f, 0.50f, 0.52f);  // metal grey
+    setColor(0.50f, 0.50f, 0.52f); // metal grey
     int numPosts = (int)(length / 0.3f);
-    if (numPosts < 2) numPosts = 2;
+    if (numPosts < 2)
+        numPosts = 2;
 
     for (int p = 0; p <= numPosts; p++)
     {
@@ -435,13 +466,21 @@ void Driveable::drawElevatedSupports()
 
 Cross::Cross(Vec3 position)
 {
-    intersectionHeight = position.y;  // extract height
+    intersectionHeight = position.y; // extract height
     pos = position;
-    pos.y = 0;  // flatten for XZ logic
+    pos.y = 0; // flatten for XZ logic
     allowedVeh = 0;
+    noGrantTimer = 0.0f;
+    roundRobinCursor = 0;
 
     isSet = false;
 }
+
+int Cross::getTelemetryForcedPasses() { return telemetryForcedPasses; }
+int Cross::getTelemetryJamRecoveries() { return telemetryJamRecoveries; }
+int Cross::getTelemetryRLFallbacks() { return telemetryRLFallbacks; }
+void Cross::incrementTelemetryJamRecoveries() { telemetryJamRecoveries++; }
+void Cross::incrementTelemetryRLFallbacks() { telemetryRLFallbacks++; }
 
 float Cross::getIntersectionHeight() const { return intersectionHeight; }
 
@@ -457,9 +496,10 @@ bool Cross::dontCheckStreet(const int which)
 
 bool Cross::checkSet()
 {
-    if (isSet) return false;
+    if (isSet)
+        return false;
 
-    if(streets.size() == 4)
+    if (streets.size() == 4)
     {
         setDefaultPriority(streets[0].street, streets[1].street, streets[2].street, streets[3].street);
     }
@@ -483,16 +523,22 @@ bool Cross::checkSet()
 
 void Cross::updateCross(const float delta)
 {
-    if (checkSet()) return;
+    if (checkSet())
+        return;
 
     // For 2-way pass-through nodes, aggressively clear allowedVeh
     // since there's no cross-traffic conflict
     if (streets.size() <= 2)
     {
+        allowedVeh = 0;
         tryPassVehiclesWithRightOfWay();
         // Don't let allowedVeh accumulate — these are just pass-throughs
+        allowedVeh = 0;
+        noGrantTimer = 0.0f;
         return;
     }
+
+    int oldAllowed = allowedVeh;
 
     if (allowedVeh == 0)
     {
@@ -503,6 +549,26 @@ void Cross::updateCross(const float delta)
             tryPassAnyVehicle();
         }
     }
+
+    if (allowedVeh > oldAllowed)
+    {
+        noGrantTimer = 0.0f;
+    }
+    else if (getTotalWaitingVehicles() > 0)
+    {
+        noGrantTimer += delta;
+    }
+    else
+    {
+        noGrantTimer = 0.0f;
+    }
+
+    if (noGrantTimer > 2.5f)
+    {
+        tryForceUnjamPass();
+        noGrantTimer = 0.0f;
+        telemetryJamRecoveries++;
+    }
 }
 
 void Cross::tryPassVehiclesWithRightOfWay()
@@ -511,7 +577,7 @@ void Cross::tryPassVehiclesWithRightOfWay()
 
     if (streets.size() == 2)
     {
-        for(unsigned int i=0;i<streets.size();i++)
+        for (unsigned int i = 0; i < streets.size(); i++)
         {
             if (streets[i].vehicles.size() > 0)
             {
@@ -521,34 +587,36 @@ void Cross::tryPassVehiclesWithRightOfWay()
     }
 
     else if (streets.size() > 2)
-    for (unsigned int i=0;i<streets.size();i++)
-    {
-        if (streets[i].vehicles.size() > 0)
+        for (unsigned int i = 0; i < streets.size(); i++)
         {
-            if (dontCheckStreet(i)) continue;
-            if (streets[i].vehicles[0]->getDstToCross() > 1.2) continue;
-
-            int which = streets[i].vehicles[0]->desiredTurn;
-            vector<int> yielding = streets[i].yield[which];
-            bool isOK = true;
-
-            for (unsigned int j = 0; j < yielding.size(); j++)
+            if (streets[i].vehicles.size() > 0)
             {
-                if (streets[yielding[j]].vehicles.size() > 0 && !dontCheckStreet(yielding[j]))
+                if (dontCheckStreet(i))
+                    continue;
+                if (streets[i].vehicles[0]->getDstToCross() > 1.5f)
+                    continue;
+
+                int which = streets[i].vehicles[0]->desiredTurn;
+                vector<int> yielding = streets[i].yield[which];
+                bool isOK = true;
+
+                for (unsigned int j = 0; j < yielding.size(); j++)
                 {
-                    isOK = false;
-                    break;
+                    if (streets[yielding[j]].vehicles.size() > 0 && !dontCheckStreet(yielding[j]))
+                    {
+                        isOK = false;
+                        break;
+                    }
+                }
+
+                if (isOK)
+                {
+                    indexesToPass.push_back(i);
                 }
             }
-
-            if (isOK)
-            {
-                indexesToPass.push_back(i);
-            }
         }
-    }
 
-    for (unsigned int i=0;i<indexesToPass.size();i++)
+    for (unsigned int i = 0; i < indexesToPass.size(); i++)
     {
         if (streets[indexesToPass[i]].vehicles[0]->isEnoughSpace())
         {
@@ -561,16 +629,23 @@ void Cross::tryPassVehiclesWithRightOfWay()
 
 void Cross::tryPassAnyVehicle()
 {
-    for(unsigned int i=0;i<streets.size();i++)
+    if (streets.size() == 0)
+        return;
+
+    unsigned int n = streets.size();
+    for (unsigned int o = 0; o < n; o++)
     {
-        if (dontCheckStreet(i)) continue;
-        if (streets[i].vehicles.size() > 0 && streets[i].vehicles[0]->dstToCross < 0.7)
+        unsigned int i = (roundRobinCursor + o) % n;
+        if (dontCheckStreet(i))
+            continue;
+        if (streets[i].vehicles.size() > 0 && streets[i].vehicles[0]->dstToCross < 1.4f)
         {
             if (streets[i].vehicles[0]->isEnoughSpace())
             {
                 streets[i].vehicles[0]->allowedToCross = true;
                 streets[i].vehicles.erase(streets[i].vehicles.begin());
                 allowedVeh++;
+                roundRobinCursor = (int)((i + 1) % n);
 
                 break;
             }
@@ -578,25 +653,63 @@ void Cross::tryPassAnyVehicle()
     }
 }
 
+int Cross::getTotalWaitingVehicles() const
+{
+    int total = 0;
+    for (const auto &street : streets)
+    {
+        total += (int)street.vehicles.size();
+    }
+    return total;
+}
+
+void Cross::tryForceUnjamPass()
+{
+    if (streets.size() == 0)
+        return;
+
+    unsigned int n = streets.size();
+    for (unsigned int o = 0; o < n; o++)
+    {
+        unsigned int i = (roundRobinCursor + o) % n;
+        if (dontCheckStreet(i))
+            continue;
+        if (streets[i].vehicles.size() == 0)
+            continue;
+
+        Vehicle *candidate = streets[i].vehicles[0];
+        if (candidate->getDstToCross() > 1.8f)
+            continue;
+        if (!candidate->isEnoughSpace())
+            continue;
+
+        candidate->allowedToCross = true;
+        streets[i].vehicles.erase(streets[i].vehicles.begin());
+        allowedVeh++;
+        roundRobinCursor = (int)((i + 1) % n);
+        telemetryForcedPasses++;
+        break;
+    }
+}
+
 void Cross::setDefaultPriority(Driveable *s0, Driveable *s1, Driveable *s2, Driveable *s3)
 {
     isSet = true;
 
-    for(unsigned int i=0;i<streets.size();i++)
+    for (unsigned int i = 0; i < streets.size(); i++)
     {
         streets[i].yield.clear();
     }
 
     if (streets.size() == 2)
     {
-
     }
     else if (streets.size() == 3)
     {
         vector<int> yield0;
         yield0.push_back(1);
         vector<int> yield0empty;
-        vector<vector<int> > finalVec0;
+        vector<vector<int>> finalVec0;
         finalVec0.push_back(yield0);
         finalVec0.push_back(yield0empty);
         finalVec0.push_back(yield0);
@@ -604,7 +717,7 @@ void Cross::setDefaultPriority(Driveable *s0, Driveable *s1, Driveable *s2, Driv
         vector<int> yield1;
         vector<int> yield1empty;
         yield1.push_back(2);
-        vector<vector<int> > finalVec1;
+        vector<vector<int>> finalVec1;
         finalVec1.push_back(yield1);
         finalVec1.push_back(yield1);
         finalVec1.push_back(yield1empty);
@@ -612,17 +725,20 @@ void Cross::setDefaultPriority(Driveable *s0, Driveable *s1, Driveable *s2, Driv
         vector<int> yield2;
         vector<int> yield2empty;
         yield2.push_back(0);
-        vector<vector<int> >finalVec2;
+        vector<vector<int>> finalVec2;
         finalVec2.push_back(yield2empty);
         finalVec2.push_back(yield2);
-        //yield2.push_back(1);
+        // yield2.push_back(1);
         finalVec2.push_back(yield2);
 
-        for(int i=0;i<3;i++)
+        for (int i = 0; i < 3; i++)
         {
-            if (streets[i].street == s0) streets[i].yield = finalVec0;
-            if (streets[i].street == s1) streets[i].yield = finalVec1;
-            if (streets[i].street == s2) streets[i].yield = finalVec2;
+            if (streets[i].street == s0)
+                streets[i].yield = finalVec0;
+            if (streets[i].street == s1)
+                streets[i].yield = finalVec1;
+            if (streets[i].street == s2)
+                streets[i].yield = finalVec2;
         }
     }
 
@@ -630,16 +746,16 @@ void Cross::setDefaultPriority(Driveable *s0, Driveable *s1, Driveable *s2, Driv
     {
         vector<int> yield[4];
 
-        //yield[0].push_back(1);
-        //yield[0].push_back(2);
-        //yield[1].push_back(1);
+        // yield[0].push_back(1);
+        // yield[0].push_back(2);
+        // yield[1].push_back(1);
 
         yield[2].push_back(1);
 
         yield[3].push_back(1);
         yield[3].push_back(2);
 
-        vector<vector<int> > finalVec;
+        vector<vector<int>> finalVec;
 
         finalVec.push_back(yield[0]);
         finalVec.push_back(yield[1]);
@@ -649,10 +765,14 @@ void Cross::setDefaultPriority(Driveable *s0, Driveable *s1, Driveable *s2, Driv
         vector<OneStreet> tempVector = streets;
         for (int i = 0; i < 4; i++)
         {
-            if (streets[i].street == s0) tempVector[0] = streets[i];
-            if (streets[i].street == s1) tempVector[1] = streets[i];
-            if (streets[i].street == s2) tempVector[2] = streets[i];
-            if (streets[i].street == s3) tempVector[3] = streets[i];
+            if (streets[i].street == s0)
+                tempVector[0] = streets[i];
+            if (streets[i].street == s1)
+                tempVector[1] = streets[i];
+            if (streets[i].street == s2)
+                tempVector[2] = streets[i];
+            if (streets[i].street == s3)
+                tempVector[3] = streets[i];
         }
         streets = tempVector;
 
@@ -660,13 +780,13 @@ void Cross::setDefaultPriority(Driveable *s0, Driveable *s1, Driveable *s2, Driv
         {
             streets[i].yield = finalVec;
 
-            rotate(streets[i].yield.begin(), streets[i].yield.begin() + (-i + 4)%4 , streets[i].yield.end());
-            for(int j = 0; j < 4; j++)
-            for(unsigned int k = 0; k < streets[i].yield[j].size(); k++)
-            {
-                streets[i].yield[j][k]+= i;
-                streets[i].yield[j][k]%=4;
-            }
+            rotate(streets[i].yield.begin(), streets[i].yield.begin() + (-i + 4) % 4, streets[i].yield.end());
+            for (int j = 0; j < 4; j++)
+                for (unsigned int k = 0; k < streets[i].yield[j].size(); k++)
+                {
+                    streets[i].yield[j][k] += i;
+                    streets[i].yield[j][k] %= 4;
+                }
         }
     }
     else
@@ -682,11 +802,27 @@ Vec3 Cross::OneStreet::getJointPos() const
 
 void Cross::draw()
 {
-    float a = 0.3f;  // half-size (matching 0.6 tile)
-    float h = intersectionHeight;  // height offset
+    float a = 0.3f;               // half-size (matching 0.6 tile)
+    float h = intersectionHeight; // height offset
     float depth = h - ROAD_DEPTH;
     float cy = h + CURB_H;
     float markY = h + 0.002f;
+
+    bool hasRoad[4] = {false, false, false, false}; // +X, -X, +Z, -Z
+    for (const auto &st : streets)
+    {
+        Vec3 dir = st.street->getDirection();
+        if (!st.direction)
+            dir = Vec3(0, 0, 0) - dir; // Reverse direction (OUT of cross)
+        if (dir.x > 0.5f)
+            hasRoad[0] = true;
+        else if (dir.x < -0.5f)
+            hasRoad[1] = true;
+        else if (dir.z > 0.5f)
+            hasRoad[2] = true;
+        else if (dir.z < -0.5f)
+            hasRoad[3] = true;
+    }
 
     // ---- 1. Top surface ----
     setColor(roadColor);
@@ -697,30 +833,42 @@ void Cross::draw()
 
     // ---- 2. Four side walls ----
     setColor(sideColor);
-    // Front (-Z face)
-    beginDraw(QUADS);
-    setNormal(0, 0, -1);
-    drawQuad(Vec3(-a, h, -a), Vec3(a, h, -a),
-             Vec3(a, depth, -a), Vec3(-a, depth, -a));
-    endDraw();
+    // Front (-Z face) -> only close if no road opening
+    if (!hasRoad[3])
+    {
+        beginDraw(QUADS);
+        setNormal(0, 0, -1);
+        drawQuad(Vec3(-a, h, -a), Vec3(a, h, -a),
+                 Vec3(a, depth, -a), Vec3(-a, depth, -a));
+        endDraw();
+    }
     // Back (+Z face)
-    beginDraw(QUADS);
-    setNormal(0, 0, 1);
-    drawQuad(Vec3(a, h, a), Vec3(-a, h, a),
-             Vec3(-a, depth, a), Vec3(a, depth, a));
-    endDraw();
+    if (!hasRoad[2])
+    {
+        beginDraw(QUADS);
+        setNormal(0, 0, 1);
+        drawQuad(Vec3(a, h, a), Vec3(-a, h, a),
+                 Vec3(-a, depth, a), Vec3(a, depth, a));
+        endDraw();
+    }
     // Left (-X face)
-    beginDraw(QUADS);
-    setNormal(-1, 0, 0);
-    drawQuad(Vec3(-a, h, a), Vec3(-a, h, -a),
-             Vec3(-a, depth, -a), Vec3(-a, depth, a));
-    endDraw();
+    if (!hasRoad[1])
+    {
+        beginDraw(QUADS);
+        setNormal(-1, 0, 0);
+        drawQuad(Vec3(-a, h, a), Vec3(-a, h, -a),
+                 Vec3(-a, depth, -a), Vec3(-a, depth, a));
+        endDraw();
+    }
     // Right (+X face)
-    beginDraw(QUADS);
-    setNormal(1, 0, 0);
-    drawQuad(Vec3(a, h, -a), Vec3(a, h, a),
-             Vec3(a, depth, a), Vec3(a, depth, -a));
-    endDraw();
+    if (!hasRoad[0])
+    {
+        beginDraw(QUADS);
+        setNormal(1, 0, 0);
+        drawQuad(Vec3(a, h, -a), Vec3(a, h, a),
+                 Vec3(a, depth, a), Vec3(a, depth, -a));
+        endDraw();
+    }
 
     // ---- 3. Bottom face ----
     setColor(Vec3(0.12f, 0.12f, 0.12f));
@@ -746,15 +894,6 @@ void Cross::draw()
     }
 
     // ---- 4.5. Missing boundaries (curbs + sidewalks) for unconnected sides ----
-    bool hasRoad[4] = {false, false, false, false}; // +X, -X, +Z, -Z
-    for (const auto& st : streets) {
-        Vec3 dir = st.street->getDirection();
-        if (!st.direction) dir = Vec3(0,0,0) - dir; // Reverse direction (OUT of cross)
-        if (dir.x > 0.5f) hasRoad[0] = true;
-        else if (dir.x < -0.5f) hasRoad[1] = true;
-        else if (dir.z > 0.5f) hasRoad[2] = true;
-        else if (dir.z < -0.5f) hasRoad[3] = true;
-    }
 
     float curbCenter = a - CURB_W * 0.5f;
     float swCenter = a + SIDEWALK_W * 0.5f;
@@ -764,25 +903,33 @@ void Cross::draw()
     float span = 2 * a;
     float spanSW = 2 * a + 2 * SIDEWALK_W; // extended to cover corners
 
-    for (int i = 0; i < 4; i++) {
-        if (!hasRoad[i]) {
-            float cx = (i == 0) ? 1 : (i == 1) ? -1 : 0;
-            float cz = (i == 2) ? 1 : (i == 3) ? -1 : 0;
-            
+    for (int i = 0; i < 4; i++)
+    {
+        if (!hasRoad[i])
+        {
+            float cx = (i == 0) ? 1 : (i == 1) ? -1
+                                               : 0;
+            float cz = (i == 2) ? 1 : (i == 3) ? -1
+                                               : 0;
+
             // Draw Curb (inward from 'a')
             setColor(curbColor);
             pushMatrix();
             translate(cx * curbCenter, cy * 0.5f, cz * curbCenter);
-            if (i < 2) drawCube(CURB_W, cy, span);
-            else drawCube(span, cy, CURB_W);
+            if (i < 2)
+                drawCube(CURB_W, cy, span);
+            else
+                drawCube(span, cy, CURB_W);
             popMatrix();
 
             // Draw Sidewalk (outward from 'a')
             setColor(Vec3(0.45f, 0.44f, 0.40f));
             pushMatrix();
             translate(cx * swCenter, swCY, cz * swCenter);
-            if (i < 2) drawCube(SIDEWALK_W, swH, spanSW);
-            else drawCube(spanSW, swH, SIDEWALK_W);
+            if (i < 2)
+                drawCube(SIDEWALK_W, swH, spanSW);
+            else
+                drawCube(spanSW, swH, SIDEWALK_W);
             popMatrix();
 
             // Draw outermost side wall using sideColor
@@ -790,19 +937,26 @@ void Cross::draw()
             float outEdge = a + SIDEWALK_W;
             float spanHalf = spanSW * 0.5f;
             beginDraw(QUADS);
-            if (i == 0) { // +X
+            if (i == 0)
+            { // +X
                 setNormal(1, 0, 0);
                 drawQuad(Vec3(outEdge, depth, -spanHalf), Vec3(outEdge, depth, spanHalf),
                          Vec3(outEdge, swY, spanHalf), Vec3(outEdge, swY, -spanHalf));
-            } else if (i == 1) { // -X
+            }
+            else if (i == 1)
+            { // -X
                 setNormal(-1, 0, 0);
                 drawQuad(Vec3(-outEdge, depth, spanHalf), Vec3(-outEdge, depth, -spanHalf),
                          Vec3(-outEdge, swY, -spanHalf), Vec3(-outEdge, swY, spanHalf));
-            } else if (i == 2) { // +Z
+            }
+            else if (i == 2)
+            { // +Z
                 setNormal(0, 0, 1);
                 drawQuad(Vec3(spanHalf, depth, outEdge), Vec3(-spanHalf, depth, outEdge),
                          Vec3(-spanHalf, swY, outEdge), Vec3(spanHalf, swY, outEdge));
-            } else if (i == 3) { // -Z
+            }
+            else if (i == 3)
+            { // -Z
                 setNormal(0, 0, -1);
                 drawQuad(Vec3(-spanHalf, depth, -outEdge), Vec3(spanHalf, depth, -outEdge),
                          Vec3(spanHalf, swY, -outEdge), Vec3(-spanHalf, swY, -outEdge));
@@ -817,8 +971,10 @@ void Cross::draw()
     float step = 0.12f;
     for (float s = -a + step; s < a; s += step)
     {
-        drawVertex(Vec3(s, markY, -a)); drawVertex(Vec3(s, markY, a));
-        drawVertex(Vec3(-a, markY, s)); drawVertex(Vec3(a, markY, s));
+        drawVertex(Vec3(s, markY, -a));
+        drawVertex(Vec3(s, markY, a));
+        drawVertex(Vec3(-a, markY, s));
+        drawVertex(Vec3(a, markY, s));
     }
     endDraw();
 
@@ -864,7 +1020,7 @@ void CrossLights::setDefaultLights(Driveable *s0, Driveable *s1, Driveable *s2, 
     defaultPriority.clear();
     curPriority.clear();
 
-    for (unsigned int i=0;i<streets.size();i++)
+    for (unsigned int i = 0; i < streets.size(); i++)
     {
         defaultPriority.push_back(false);
         curPriority.push_back(false);
@@ -872,19 +1028,22 @@ void CrossLights::setDefaultLights(Driveable *s0, Driveable *s1, Driveable *s2, 
 
     if (streets.size() == 3)
     {
-        //defaultPriority[0] = true;
-        for (unsigned int i=0;i<streets.size();i++)
+        // defaultPriority[0] = true;
+        for (unsigned int i = 0; i < streets.size(); i++)
         {
-            if (streets[i].street == s0) defaultPriority[i] = true;
+            if (streets[i].street == s0)
+                defaultPriority[i] = true;
         }
     }
 
     else if (streets.size() == 4)
     {
-        for (unsigned int i=0;i<streets.size();i++)
+        for (unsigned int i = 0; i < streets.size(); i++)
         {
-            if (streets[i].street == s0) defaultPriority[i] = true;
-            if (streets[i].street == s2) defaultPriority[i] = true;
+            if (streets[i].street == s0)
+                defaultPriority[i] = true;
+            if (streets[i].street == s2)
+                defaultPriority[i] = true;
         }
     }
     else
@@ -895,7 +1054,7 @@ void CrossLights::setDefaultLights(Driveable *s0, Driveable *s1, Driveable *s2, 
 
 void CrossLights::setLightsPriority()
 {
-    for(unsigned int i=0;i<streets.size();i++)
+    for (unsigned int i = 0; i < streets.size(); i++)
     {
         if (phaseNS)
         {
@@ -919,6 +1078,12 @@ CrossLights::CrossLights(Vec3 position) : Cross(position)
     minGreenDuration = 4.0f;
     maxGreenDuration = 45.0f;
     useRL = true;
+    rlFailureStreak = 0;
+    rlDisableTimer = 0.0f;
+    starvationTimer = 0.0f;
+    gridlockTimer = 0.0f;
+    controlState = CTRL_NORMAL;
+    controlStateTimer = 0.0f;
     setLightsPriority();
 }
 
@@ -953,10 +1118,14 @@ void CrossLights::collectState(int &north, int &south, int &east, int &west) con
     {
         const int c = classifyStreetCardinal(street);
         const int waiting = (int)street.vehicles.size();
-        if (c == 0) north += waiting;
-        else if (c == 1) south += waiting;
-        else if (c == 2) east += waiting;
-        else west += waiting;
+        if (c == 0)
+            north += waiting;
+        else if (c == 1)
+            south += waiting;
+        else if (c == 2)
+            east += waiting;
+        else
+            west += waiting;
     }
 }
 
@@ -988,6 +1157,75 @@ void CrossLights::update(const float delta)
 
     curTime += delta;
     decisionTimer += delta;
+    controlStateTimer += delta;
+
+    if (!useRL)
+    {
+        rlDisableTimer -= delta;
+        if (rlDisableTimer <= 0.0f)
+        {
+            useRL = true;
+            rlFailureStreak = 0;
+            if (controlState == CTRL_FAILSAFE)
+            {
+                controlState = CTRL_NORMAL;
+                controlStateTimer = 0.0f;
+            }
+        }
+    }
+
+    int maxLaneQueue = 0;
+    for (const auto &street : streets)
+    {
+        if ((int)street.vehicles.size() > maxLaneQueue)
+        {
+            maxLaneQueue = (int)street.vehicles.size();
+        }
+    }
+
+    if (maxLaneQueue >= 8)
+    {
+        starvationTimer += delta;
+    }
+    else
+    {
+        starvationTimer = 0.0f;
+    }
+
+    if (getTotalWaitingVehicles() >= 18)
+    {
+        gridlockTimer += delta;
+    }
+    else
+    {
+        gridlockTimer = 0.0f;
+    }
+
+    if (gridlockTimer > 8.0f)
+    {
+        controlState = CTRL_GRIDLOCK_RECOVERY;
+        applyAction(1);
+        starvationTimer = 0.0f;
+        gridlockTimer = 0.0f;
+        curTime = 0.0f;
+        controlStateTimer = 0.0f;
+        incrementTelemetryJamRecoveries();
+    }
+    else if (starvationTimer > 6.0f)
+    {
+        controlState = CTRL_STARVATION_RECOVERY;
+        applyAction(1);
+        starvationTimer = 0.0f;
+        curTime = 0.0f;
+        controlStateTimer = 0.0f;
+        incrementTelemetryJamRecoveries();
+    }
+
+    if ((controlState == CTRL_STARVATION_RECOVERY || controlState == CTRL_GRIDLOCK_RECOVERY) && controlStateTimer > 3.0f)
+    {
+        controlState = CTRL_NORMAL;
+        controlStateTimer = 0.0f;
+    }
 
     if (decisionTimer >= decisionInterval)
     {
@@ -1013,11 +1251,26 @@ void CrossLights::update(const float delta)
         // If RL server is unavailable, preserve deterministic behavior.
         if (action >= 0 && action <= 3)
         {
+            rlFailureStreak = 0;
             applyAction(action);
         }
-        else if (curTime >= greenDuration)
+        else
         {
-            applyAction(1);
+            rlFailureStreak++;
+            if (rlFailureStreak >= 8)
+            {
+                useRL = false;
+                rlDisableTimer = 20.0f;
+                rlFailureStreak = 0;
+                controlState = CTRL_FAILSAFE;
+                controlStateTimer = 0.0f;
+                incrementTelemetryRLFallbacks();
+            }
+
+            if (curTime >= greenDuration)
+            {
+                applyAction(1);
+            }
         }
     }
 
@@ -1031,15 +1284,15 @@ void CrossLights::draw()
 {
     Cross::draw();
 
-    Vec3 color1 = phaseNS ? Vec3(0,1,0) : Vec3(1,0,0);
-    Vec3 color2 = phaseNS ? Vec3(1,0,0) : Vec3(0,1,0);
+    Vec3 color1 = phaseNS ? Vec3(0, 1, 0) : Vec3(1, 0, 0);
+    Vec3 color2 = phaseNS ? Vec3(1, 0, 0) : Vec3(0, 1, 0);
 
     translate(-pos);
 
-    for(unsigned int i =0;i<streets.size();i++)
+    for (unsigned int i = 0; i < streets.size(); i++)
     {
         pushMatrix();
-        translate(0,0.35,0);
+        translate(0, 0.35, 0);
 
         if (!streets[i].direction)
             translate(streets[i].street->getNormal() / 10.0);
@@ -1047,24 +1300,26 @@ void CrossLights::draw()
             translate(-streets[i].street->getNormal() / 10.0);
 
         translate(streets[i].getJointPos());
-        if (defaultPriority[i]) setColor(color1.x, color1.y, color1.z);
-        else setColor(color2.x, color2.y, color2.z);
+        if (defaultPriority[i])
+            setColor(color1.x, color1.y, color1.z);
+        else
+            setColor(color2.x, color2.y, color2.z);
 
         if (streets[i].direction)
             rotateY(streets[i].street->getNormal().angleXZ());
         else
             rotateY(streets[i].street->getNormal().angleXZ() + 180);
 
-        drawCube(0.05,0.1,0.05);
+        drawCube(0.05, 0.1, 0.05);
 
-        translate(-0.2,0,0);
+        translate(-0.2, 0, 0);
 
         setColor(0.5, 0.5, 0.5);
-        translate(0,-0.35/2,0);
-        drawCube(0.025,0.35,0.025);
+        translate(0, -0.35 / 2, 0);
+        drawCube(0.025, 0.35, 0.025);
 
-        translate(0.1,0.35/2,0);
-        drawCube(0.225,0.025,0.025);
+        translate(0.1, 0.35 / 2, 0);
+        drawCube(0.225, 0.025, 0.025);
 
         popMatrix();
     }
@@ -1077,38 +1332,42 @@ Street::Street(Cross *begCross, Cross *endCross) : Driveable(begCross, endCross)
     float len = getLength();
     Vec3 dir = getDirection();
     Vec3 norm = getNormal();
-    
+
     // Sidewalk is centered at HW + SIDEWALK_W/2
-    float offsetDist = 0.3f + 0.08f / 2.0f; 
-    
+    float offsetDist = 0.3f + 0.08f / 2.0f;
+
     float jointLength = Vec3::dst(begJoint, endJoint);
-    int numSpots = (int)(jointLength / 2.0f); 
-    if (numSpots < 1) return; // Street too short
+    int numSpots = (int)(jointLength / 2.0f);
+    if (numSpots < 1)
+        return; // Street too short
 
     float step = jointLength / (numSpots + 1);
-    
+
     for (int side = -1; side <= 1; side += 2)
     {
         for (int i = 1; i <= numSpots; i++)
         {
             Vec3 basePos = begJoint + dir * (step * i);
             Vec3 pos = basePos + norm * (offsetDist * side);
-            
+
             // Deterministic hash based on world position
             unsigned int hash = (unsigned int)(pos.x * 1337 + pos.z * 8191);
             if ((hash % 100) < 50) // 50% chance of a prop at this spot
             {
                 int type = (hash >> 3) % 4; // 0=Tree, 1=Lamppost, 2=Bench, 3=Dustbin
-                if (type == 0) sidewalkProps.push_back(new Tree(pos));
-                else if (type == 1) sidewalkProps.push_back(new Lamppost(pos));
-                else if (type == 2) 
+                if (type == 0)
+                    sidewalkProps.push_back(new Tree(pos));
+                else if (type == 1)
+                    sidewalkProps.push_back(new Lamppost(pos));
+                else if (type == 2)
                 {
                     // Align bench with the street
                     // Benches face inwards: side=1 (left side) -> rotate -90, side=-1 (right side) -> rotate +90
                     float benchAngle = dir.angleXZ() + (side == 1 ? -90.0f : 90.0f);
                     sidewalkProps.push_back(new Bench(pos, benchAngle));
                 }
-                else if (type == 3) sidewalkProps.push_back(new Dustbin(pos));
+                else if (type == 3)
+                    sidewalkProps.push_back(new Dustbin(pos));
             }
         }
     }
@@ -1126,7 +1385,7 @@ Street::~Street()
 void Street::draw()
 {
     Driveable::draw();
-    
+
     // Draw procedural props
     for (auto prop : sidewalkProps)
     {

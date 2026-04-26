@@ -1,14 +1,12 @@
 ///   File: Garage.cpp
 
-
 #include "Garage.h"
 #include "Simulator.h"
 using namespace std;
 
 int Garage::vehiclesCounter = 0;
-const float Garage::GATE_SPEED = 120.0f;   // degrees per second (opens in ~0.75s)
-const float Garage::GATE_HOLD  = 2.5f;     // seconds the gate stays fully open
-
+const float Garage::GATE_SPEED = 120.0f; // degrees per second (opens in ~0.75s)
+const float Garage::GATE_HOLD = 2.5f;    // seconds the gate stays fully open
 
 Garage::Garage(Vec3 p, Cross *c) : Driveable(p, c)
 {
@@ -30,7 +28,6 @@ Garage::Garage(Vec3 p, Cross *c) : Driveable(p, c)
     gateTimer = 0.0f;
 }
 
-
 void Garage::draw()
 {
     // Draw the garage's own driveway so the door doesn't look like it opens into the grass
@@ -45,54 +42,57 @@ void Garage::draw()
     for (size_t i = 0; i < id.size(); i++)
         hash = ((hash << 5) + hash) + (unsigned char)id[i];
 
-    int style       = hash % 3;            // 0=office, 1=apartment, 2=house
-    int colorIdx    = (hash >> 3) % 8;
-    int roofStyle   = (hash >> 6) % 3;     // 0=flat, 1=peaked, 2=parapet
-    int doorStyle   = (hash >> 9) % 3;     // 0=single, 1=double, 2=shopfront
-    int detailSeed  = (hash >> 12) % 7;
+    int style = hash % 3; // 0=office, 1=apartment, 2=house
+    int colorIdx = (hash >> 3) % 8;
+    int roofStyle = (hash >> 6) % 3; // 0=flat, 1=peaked, 2=parapet
+    int doorStyle = (hash >> 9) % 3; // 0=single, 1=double, 2=shopfront
+    int detailSeed = (hash >> 12) % 7;
 
     // Height varies by style
     float height;
-    if (style == 0)      height = 0.8f + (hash % 5) * 0.12f;     // office: 0.8-1.28
-    else if (style == 1) height = 0.6f + (hash % 4) * 0.10f;     // apartment: 0.6-0.9
-    else                 height = 0.35f + (hash % 3) * 0.08f;    // house: 0.35-0.51
+    if (style == 0)
+        height = 0.8f + (hash % 5) * 0.12f; // office: 0.8-1.28
+    else if (style == 1)
+        height = 0.6f + (hash % 4) * 0.10f; // apartment: 0.6-0.9
+    else
+        height = 0.35f + (hash % 3) * 0.08f; // house: 0.35-0.51
 
     float halfH = height * 0.5f;
-    float buildW = (style == 2) ? 0.55f : 0.7f;   // houses are narrower
+    float buildW = (style == 2) ? 0.55f : 0.7f; // houses are narrower
     float buildD = 1.0f;
 
     // ========== Color palette (8 muted architectural tones) ==========
     Vec3 wallColors[8] = {
-        Vec3(0.62f, 0.60f, 0.58f),   // warm grey
-        Vec3(0.72f, 0.65f, 0.52f),   // tan/sandstone
-        Vec3(0.50f, 0.38f, 0.28f),   // brown
-        Vec3(0.82f, 0.78f, 0.70f),   // cream
-        Vec3(0.65f, 0.35f, 0.25f),   // terracotta
-        Vec3(0.48f, 0.52f, 0.58f),   // blue-grey
-        Vec3(0.45f, 0.48f, 0.35f),   // olive
-        Vec3(0.40f, 0.42f, 0.45f)    // slate
+        Vec3(0.62f, 0.60f, 0.58f), // warm grey
+        Vec3(0.72f, 0.65f, 0.52f), // tan/sandstone
+        Vec3(0.50f, 0.38f, 0.28f), // brown
+        Vec3(0.82f, 0.78f, 0.70f), // cream
+        Vec3(0.65f, 0.35f, 0.25f), // terracotta
+        Vec3(0.48f, 0.52f, 0.58f), // blue-grey
+        Vec3(0.45f, 0.48f, 0.35f), // olive
+        Vec3(0.40f, 0.42f, 0.45f)  // slate
     };
     Vec3 wallColor = wallColors[colorIdx];
 
     // Derive accent colors from wall color
     Vec3 trimColor = wallColor * 0.7f;
     Vec3 roofColor = wallColor * 0.55f;
-    Vec3 windowColor(0.18f, 0.35f, 0.42f);    // dark teal glass
-    Vec3 windowFrame(0.75f, 0.73f, 0.68f);    // light frame
-    Vec3 doorColor(0.30f, 0.18f, 0.08f);       // dark wood
+    Vec3 windowColor(0.18f, 0.35f, 0.42f); // dark teal glass
+    Vec3 windowFrame(0.75f, 0.73f, 0.68f); // light frame
+    Vec3 doorColor(0.30f, 0.18f, 0.08f);   // dark wood
 
     // Day phase for window glow
     int bldgPhase = Simulator::getInstance().getDayPhase();
     bool isNightTime = (bldgPhase == 0 || bldgPhase == 1 || bldgPhase == 5 || bldgPhase == 6);
     // Window colors: at night, some windows glow warm (occupied), others dark (empty)
-    Vec3 windowLit(0.85f, 0.75f, 0.45f);       // warm occupied room
-    Vec3 windowDark(0.08f, 0.10f, 0.14f);      // dark empty room
-    Vec3 windowDay(0.18f, 0.35f, 0.42f);       // daytime teal glass
+    Vec3 windowLit(0.85f, 0.75f, 0.45f);  // warm occupied room
+    Vec3 windowDark(0.08f, 0.10f, 0.14f); // dark empty room
+    Vec3 windowDay(0.18f, 0.35f, 0.42f);  // daytime teal glass
 
     pushMatrix();
     translate(0, halfH + CURB_H, 0);
-    // The building's procedural front face is -X. 
-    // direction.angleXZ() aligns +Z with the road. 
+    // The building's procedural front face is -X.
+    // direction.angleXZ() aligns +Z with the road.
     // So we add 90 degrees to align -X with the road!
     float angle = direction.angleXZ();
     // Snap to nearest 90 degrees to ensure garages always face the road grid cleanly
@@ -104,53 +104,101 @@ void Garage::draw()
     setColor(wallColor);
     float hw = buildW * 0.5f;
     float hd = buildD * 0.5f;
-    
+
     // Gate dimensions and hole setup
     float gateW = buildD * 0.55f;
     float gateH = 0.22f;
     float sideWallW = (buildD - gateW) * 0.5f;
 
     // Top roof
-    pushMatrix(); translate(0, halfH - 0.01f, 0); drawCube(buildW, 0.02f, buildD); popMatrix();
+    pushMatrix();
+    translate(0, halfH - 0.01f, 0);
+    drawCube(buildW, 0.02f, buildD);
+    popMatrix();
     // Back wall (+X)
-    pushMatrix(); translate(hw - 0.01f, 0, 0); drawCube(0.02f, height, buildD); popMatrix();
+    pushMatrix();
+    translate(hw - 0.01f, 0, 0);
+    drawCube(0.02f, height, buildD);
+    popMatrix();
     // Left wall (+Z)
-    pushMatrix(); translate(0, 0, hd - 0.01f); drawCube(buildW, height, 0.02f); popMatrix();
+    pushMatrix();
+    translate(0, 0, hd - 0.01f);
+    drawCube(buildW, height, 0.02f);
+    popMatrix();
     // Right wall (-Z)
-    pushMatrix(); translate(0, 0, -hd + 0.01f); drawCube(buildW, height, 0.02f); popMatrix();
-    
+    pushMatrix();
+    translate(0, 0, -hd + 0.01f);
+    drawCube(buildW, height, 0.02f);
+    popMatrix();
+
     // Front-top wall (above the gate)
-    pushMatrix(); translate(-hw + 0.01f, -halfH + gateH + (height - gateH)*0.5f, 0); drawCube(0.02f, height - gateH, buildD); popMatrix();
+    pushMatrix();
+    translate(-hw + 0.01f, -halfH + gateH + (height - gateH) * 0.5f, 0);
+    drawCube(0.02f, height - gateH, buildD);
+    popMatrix();
     // Front-left wall (side of gate)
-    pushMatrix(); translate(-hw + 0.01f, -halfH + gateH * 0.5f, gateW * 0.5f + sideWallW * 0.5f); drawCube(0.02f, gateH, sideWallW); popMatrix();
+    pushMatrix();
+    translate(-hw + 0.01f, -halfH + gateH * 0.5f, gateW * 0.5f + sideWallW * 0.5f);
+    drawCube(0.02f, gateH, sideWallW);
+    popMatrix();
     // Front-right wall (side of gate)
-    pushMatrix(); translate(-hw + 0.01f, -halfH + gateH * 0.5f, -gateW * 0.5f - sideWallW * 0.5f); drawCube(0.02f, gateH, sideWallW); popMatrix();
+    pushMatrix();
+    translate(-hw + 0.01f, -halfH + gateH * 0.5f, -gateW * 0.5f - sideWallW * 0.5f);
+    drawCube(0.02f, gateH, sideWallW);
+    popMatrix();
 
     // Floor of the garage interior
     setColor(Vec3(0.2f, 0.2f, 0.2f)); // dark floor
-    pushMatrix(); translate(0, -halfH + 0.005f, 0); drawCube(buildW, 0.01f, buildD); popMatrix();
+    pushMatrix();
+    translate(0, -halfH + 0.005f, 0);
+    drawCube(buildW, 0.01f, buildD);
+    popMatrix();
 
     // Interior walls (dark)
     setColor(Vec3(0.15f, 0.15f, 0.15f));
     // Back interior
-    pushMatrix(); translate(hw - 0.03f, -halfH + gateH*0.5f, 0); drawCube(0.01f, gateH, buildD); popMatrix();
+    pushMatrix();
+    translate(hw - 0.03f, -halfH + gateH * 0.5f, 0);
+    drawCube(0.01f, gateH, buildD);
+    popMatrix();
     // Left interior
-    pushMatrix(); translate(0, -halfH + gateH*0.5f, hd - 0.03f); drawCube(buildW, gateH, 0.01f); popMatrix();
+    pushMatrix();
+    translate(0, -halfH + gateH * 0.5f, hd - 0.03f);
+    drawCube(buildW, gateH, 0.01f);
+    popMatrix();
     // Right interior
-    pushMatrix(); translate(0, -halfH + gateH*0.5f, -hd + 0.03f); drawCube(buildW, gateH, 0.01f); popMatrix();
+    pushMatrix();
+    translate(0, -halfH + gateH * 0.5f, -hd + 0.03f);
+    drawCube(buildW, gateH, 0.01f);
+    popMatrix();
 
     // ========== FOUNDATION / BASE STRIP ==========
     setColor(trimColor * 0.8f);
     // Back strip
-    pushMatrix(); translate(hw + 0.01f, -halfH + 0.015f, 0); drawCube(0.02f, 0.03f, buildD + 0.02f); popMatrix();
+    pushMatrix();
+    translate(hw + 0.01f, -halfH + 0.015f, 0);
+    drawCube(0.02f, 0.03f, buildD + 0.02f);
+    popMatrix();
     // Left strip
-    pushMatrix(); translate(0, -halfH + 0.015f, hd + 0.01f); drawCube(buildW + 0.02f, 0.03f, 0.02f); popMatrix();
+    pushMatrix();
+    translate(0, -halfH + 0.015f, hd + 0.01f);
+    drawCube(buildW + 0.02f, 0.03f, 0.02f);
+    popMatrix();
     // Right strip
-    pushMatrix(); translate(0, -halfH + 0.015f, -hd - 0.01f); drawCube(buildW + 0.02f, 0.03f, 0.02f); popMatrix();
+    pushMatrix();
+    translate(0, -halfH + 0.015f, -hd - 0.01f);
+    drawCube(buildW + 0.02f, 0.03f, 0.02f);
+    popMatrix();
     // Front-left strip
-    pushMatrix(); translate(-hw - 0.01f, -halfH + 0.015f, gateW * 0.5f + sideWallW * 0.5f); drawCube(0.02f, 0.03f, sideWallW); popMatrix();
+    pushMatrix();
+    translate(-hw - 0.01f, -halfH + 0.015f, gateW * 0.5f + sideWallW * 0.5f);
+    drawCube(0.02f, 0.03f, sideWallW);
+    popMatrix();
     // Front-right strip
-    pushMatrix(); translate(-hw - 0.01f, -halfH + 0.015f, -gateW * 0.5f - sideWallW * 0.5f); drawCube(0.02f, 0.03f, sideWallW); popMatrix();
+    pushMatrix();
+    translate(-hw - 0.01f, -halfH + 0.015f, -gateW * 0.5f - sideWallW * 0.5f);
+    drawCube(0.02f, 0.03f, sideWallW);
+    popMatrix();
 
     // ========== CORNICE (top trim band) ==========
     setColor(trimColor);
@@ -205,25 +253,40 @@ void Garage::draw()
         // Parapet roof (raised wall around flat top)
         setColor(trimColor);
         float pw = 0.02f;
-        pushMatrix(); translate(0, halfH + 0.03f, buildD * 0.5f); drawCube(buildW + 0.02f, 0.06f, pw); popMatrix();
-        pushMatrix(); translate(0, halfH + 0.03f, -buildD * 0.5f); drawCube(buildW + 0.02f, 0.06f, pw); popMatrix();
-        pushMatrix(); translate(buildW * 0.5f, halfH + 0.03f, 0); drawCube(pw, 0.06f, buildD); popMatrix();
-        pushMatrix(); translate(-buildW * 0.5f, halfH + 0.03f, 0); drawCube(pw, 0.06f, buildD); popMatrix();
+        pushMatrix();
+        translate(0, halfH + 0.03f, buildD * 0.5f);
+        drawCube(buildW + 0.02f, 0.06f, pw);
+        popMatrix();
+        pushMatrix();
+        translate(0, halfH + 0.03f, -buildD * 0.5f);
+        drawCube(buildW + 0.02f, 0.06f, pw);
+        popMatrix();
+        pushMatrix();
+        translate(buildW * 0.5f, halfH + 0.03f, 0);
+        drawCube(pw, 0.06f, buildD);
+        popMatrix();
+        pushMatrix();
+        translate(-buildW * 0.5f, halfH + 0.03f, 0);
+        drawCube(pw, 0.06f, buildD);
+        popMatrix();
     }
 
     float frontX = -(buildW * 0.5f + 0.005f);
 
     // ========== FRONT FACE: WINDOWS ==========
     int numFloors = (int)(height / 0.2f);
-    if (numFloors < 1) numFloors = 1;
-    if (numFloors > 6) numFloors = 6;
+    if (numFloors < 1)
+        numFloors = 1;
+    if (numFloors > 6)
+        numFloors = 6;
     int winCols = (style == 2) ? 2 : 3;
     float winSpacing = buildD * 0.8f / (winCols + 1);
 
     for (int floor = 1; floor < numFloors; floor++)
     {
         float wy = -halfH + 0.15f + floor * 0.18f;
-        if (wy > halfH - 0.08f) break;
+        if (wy > halfH - 0.08f)
+            break;
 
         for (int col = 0; col < winCols; col++)
         {
@@ -255,7 +318,8 @@ void Garage::draw()
 
     // ========== SIDE FACES: WINDOWS ==========
     int sideWinCols = (int)(buildW / 0.2f);
-    if (sideWinCols < 1) sideWinCols = 1;
+    if (sideWinCols < 1)
+        sideWinCols = 1;
     float sideSpacing = buildW * 0.8f / (sideWinCols + 1);
 
     for (int side = -1; side <= 1; side += 2)
@@ -265,7 +329,8 @@ void Garage::draw()
         for (int floor = 0; floor < numFloors; floor++)
         {
             float wy = -halfH + 0.15f + floor * 0.18f;
-            if (wy > halfH - 0.08f) break;
+            if (wy > halfH - 0.08f)
+                break;
 
             for (int col = 0; col < sideWinCols; col++)
             {
@@ -303,7 +368,8 @@ void Garage::draw()
         for (int floor = 2; floor < numFloors; floor += 2)
         {
             float by = -halfH + 0.08f + floor * 0.18f;
-            if (by > halfH - 0.1f) break;
+            if (by > halfH - 0.1f)
+                break;
 
             setColor(0.60f, 0.58f, 0.55f);
             // Balcony slab
@@ -356,8 +422,8 @@ void Garage::draw()
     // centered vertically. We draw it in world space (after the building popMatrix).
     {
         // Gate dimensions — slightly narrower than building front face (which spans buildD)
-        float gateW = buildD * 0.55f;   // width of opening
-        float gateH = 0.22f;            // full closed height
+        float gateW = buildD * 0.55f; // width of opening
+        float gateH = 0.22f;          // full closed height
         int numSlats = 5;
         float slatH = gateH / numSlats;
 
@@ -368,7 +434,7 @@ void Garage::draw()
         // we reproduce the same transform here.
 
         // Colors
-        Vec3 gateColor(0.35f, 0.34f, 0.32f);    // dark steel
+        Vec3 gateColor(0.35f, 0.34f, 0.32f);     // dark steel
         Vec3 gateHighlight(0.50f, 0.49f, 0.46f); // lighter slat edge
         Vec3 gateFrame(0.25f, 0.24f, 0.22f);     // frame
 
@@ -407,10 +473,12 @@ void Garage::draw()
         // Draw panel from hinge (y=0) upward
         for (int s = 0; s < numSlats; s++)
         {
-            float sy = slatH * s + slatH * 0.5f;  // center of each slat above hinge
+            float sy = slatH * s + slatH * 0.5f; // center of each slat above hinge
             // Alternate slight color for slat bands
-            if (s % 2 == 0) setColor(gateColor);
-            else             setColor(gateHighlight);
+            if (s % 2 == 0)
+                setColor(gateColor);
+            else
+                setColor(gateHighlight);
             pushMatrix();
             translate(0, sy, 0);
             drawCube(0.008f, slatH - 0.003f, gateW - 0.005f);
@@ -444,19 +512,34 @@ void Garage::draw()
 void Garage::update(const float delta)
 {
     // ===== Traffic density modulation by time of day =====
-    static float spawnMults[7] = { 0.15f, 0.5f, 2.0f, 1.0f, 1.2f, 2.0f, 0.6f };
-    static float maxMults[7]   = { 0.20f, 0.4f, 1.5f, 1.0f, 1.1f, 1.5f, 0.5f };
+    static float spawnMults[7] = {0.15f, 0.5f, 2.0f, 1.0f, 1.2f, 2.0f, 0.6f};
+    static float maxMults[7] = {0.20f, 0.4f, 1.5f, 1.0f, 1.1f, 1.5f, 0.5f};
 
     int phase = Simulator::getInstance().getDayPhase();
     float spawnMult = spawnMults[phase];
     float effectiveFrec = frecSpot / spawnMult;
     int effectiveMax = (int)(maxVehicles * maxMults[phase]);
-    if (effectiveMax < 2) effectiveMax = 2;
+    if (effectiveMax < 2)
+        effectiveMax = 2;
+
+    // Local anti-jam dampening: if this garage lane is saturated,
+    // progressively slow spawning to avoid permanent lock-ups.
+    int laneQueued = (int)vehiclesBeg.size();
+    if (laneQueued > effectiveMax * 0.50f)
+        effectiveFrec *= 1.25f;
+    if (laneQueued > effectiveMax * 0.70f)
+        effectiveFrec *= 1.60f;
+    if (laneQueued > effectiveMax * 0.85f)
+        effectiveFrec *= 2.20f;
+
+    // If delete queue is growing, ease inflow as well.
+    if ((int)vehiclesEnd.size() > 6)
+        effectiveFrec *= 1.35f;
 
     if (vehiclesBeg.size() == 0 || (vehiclesBeg.size() > 0 && vehiclesBeg.back()->xPos > 1))
         curTimeSpot += delta;
 
-    if (curTimeSpot > effectiveFrec && spottedVehicles < effectiveMax)
+    if (curTimeSpot > effectiveFrec && spottedVehicles < effectiveMax && laneQueued < effectiveMax)
     {
         isReadyToSpot = true;
     }
@@ -475,44 +558,42 @@ void Garage::update(const float delta)
     // ===== Gate animation state machine =====
     switch (gateState)
     {
-        case GATE_OPENING:
-            gateAngle += GATE_SPEED * delta;
-            if (gateAngle >= 90.0f)
-            {
-                gateAngle = 90.0f;
-                gateState = GATE_OPEN;
-                gateTimer = 0.0f;
-            }
-            break;
+    case GATE_OPENING:
+        gateAngle += GATE_SPEED * delta;
+        if (gateAngle >= 90.0f)
+        {
+            gateAngle = 90.0f;
+            gateState = GATE_OPEN;
+            gateTimer = 0.0f;
+        }
+        break;
 
-        case GATE_OPEN:
-            gateTimer += delta;
-            // Close only if no vehicle near the gate entrance
-            if (gateTimer > GATE_HOLD)
-            {
-                // Don't close if a vehicle is still near the exit (xPos < 0.3)
-                bool vehicleNearGate = (vehiclesBeg.size() > 0 && vehiclesBeg.back()->xPos < 0.3f)
-                                    || (vehiclesEnd.size() > 0 && vehiclesEnd.front()->xPos < 0.3f);
-                if (!vehicleNearGate)
-                    gateState = GATE_CLOSING;
-            }
-            break;
+    case GATE_OPEN:
+        gateTimer += delta;
+        // Close only if no vehicle near the gate entrance
+        if (gateTimer > GATE_HOLD)
+        {
+            // Don't close if a vehicle is still near the exit (xPos < 0.3)
+            bool vehicleNearGate = (vehiclesBeg.size() > 0 && vehiclesBeg.back()->xPos < 0.3f) || (vehiclesEnd.size() > 0 && vehiclesEnd.front()->xPos < 0.3f);
+            if (!vehicleNearGate)
+                gateState = GATE_CLOSING;
+        }
+        break;
 
-        case GATE_CLOSING:
-            gateAngle -= GATE_SPEED * delta;
-            if (gateAngle <= 0.0f)
-            {
-                gateAngle = 0.0f;
-                gateState = GATE_CLOSED;
-            }
-            break;
+    case GATE_CLOSING:
+        gateAngle -= GATE_SPEED * delta;
+        if (gateAngle <= 0.0f)
+        {
+            gateAngle = 0.0f;
+            gateState = GATE_CLOSED;
+        }
+        break;
 
-        case GATE_CLOSED:
-        default:
-            break;
+    case GATE_CLOSED:
+    default:
+        break;
     }
 }
-
 
 string Garage::itos(const int x)
 {
@@ -521,7 +602,7 @@ string Garage::itos(const int x)
     return ss.str();
 }
 
-Vehicle* Garage::spotVeh()
+Vehicle *Garage::spotVeh()
 {
     curTimeSpot = 0;
     isReadyToSpot = false;
@@ -544,8 +625,7 @@ Vehicle* Garage::spotVeh()
     return temp;
 }
 
-
-Vehicle* Garage::deleteVeh()
+Vehicle *Garage::deleteVeh()
 {
     curTimeDelete = 0;
     isReadyToDelete = false;
@@ -555,7 +635,7 @@ Vehicle* Garage::deleteVeh()
         Vehicle *temp = vehiclesEnd.front();
         vehiclesEnd.pop();
 
-        if(temp->backVeh != nullptr)
+        if (temp->backVeh != nullptr)
         {
             temp->backVeh->isFirstVeh = true;
             temp->backVeh->frontVeh = nullptr;
@@ -582,7 +662,6 @@ bool Garage::checkReadyToDelete() const
 
 GarageCar::GarageCar(Vec3 p, Cross *c) : Garage(p, c)
 {
-
 }
 
 Vehicle *GarageCar::createVehicle()
@@ -594,7 +673,6 @@ Vehicle *GarageCar::createVehicle()
 
 GarageBus::GarageBus(Vec3 p, Cross *c) : Garage(p, c)
 {
-
 }
 
 Vehicle *GarageBus::createVehicle()

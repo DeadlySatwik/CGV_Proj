@@ -1,6 +1,5 @@
 ///   File: Road.h
 
-
 #ifndef ROAD_H
 #define ROAD_H
 
@@ -20,17 +19,17 @@ class Road : public GameObject
 {
 public:
     static Vec3 roadColor;
-    static Vec3 sideColor;      // side wall color (darker)
-    static Vec3 curbColor;      // curb concrete color
-    static Vec3 markingColor;   // lane marking color
-    static Vec3 groundColor;    // ground plane color
+    static Vec3 sideColor;    // side wall color (darker)
+    static Vec3 curbColor;    // curb concrete color
+    static Vec3 markingColor; // lane marking color
+    static Vec3 groundColor;  // ground plane color
 
-    static const float ROAD_DEPTH;  // depth below y=0
-    static const float CURB_H;      // curb height above y=0
-    static const float CURB_W;      // curb width
-    static const float SIDEWALK_W;  // sidewalk width beyond curb
+    static const float ROAD_DEPTH; // depth below y=0
+    static const float CURB_H;     // curb height above y=0
+    static const float CURB_W;     // curb width
+    static const float SIDEWALK_W; // sidewalk width beyond curb
 protected:
-    virtual ~Road(){};
+    virtual ~Road() {};
 };
 
 class Driveable : public Road
@@ -46,15 +45,15 @@ public:
     float getBegHeight() const;
     float getEndHeight() const;
     bool isElevated() const;
-    int getCollisionLayer() const;  // 0=ground, 1=elevated
+    int getCollisionLayer() const; // 0=ground, 1=elevated
 
 protected:
     Driveable(Cross *begCross, Cross *endCross);
     Driveable(Vec3 p, Cross *endCross);
-    virtual ~Driveable(){};
+    virtual ~Driveable() {};
 
-    std::queue<Vehicle*> vehiclesBeg;
-    std::queue<Vehicle*> vehiclesEnd;
+    std::queue<Vehicle *> vehiclesBeg;
+    std::queue<Vehicle *> vehiclesEnd;
 
     Vec3 begPos;
     Vec3 endPos;
@@ -62,8 +61,8 @@ protected:
     Vec3 begJoint;
     Vec3 endJoint;
 
-    float begHeight;   // Y offset at begPos (default 0)
-    float endHeight;   // Y offset at endPos (default 0)
+    float begHeight; // Y offset at begPos (default 0)
+    float endHeight; // Y offset at endPos (default 0)
 
     Vec3 getBegJointWidth(const bool dir) const;
     Vec3 getEndJointWidth(const bool dir) const;
@@ -75,11 +74,11 @@ protected:
 
     virtual float freeSpace(const bool dir) const;
 
-    Cross* crossBeg;
-    Cross* crossEnd;
+    Cross *crossBeg;
+    Cross *crossEnd;
 
     void draw();
-    void drawElevatedSupports();  // pylons + railings
+    void drawElevatedSupports(); // pylons + railings
 
 private:
     float reservedSpaceBeg;
@@ -98,7 +97,7 @@ public:
 
 private:
     void draw();
-    std::vector<GameObject*> sidewalkProps;
+    std::vector<GameObject *> sidewalkProps;
 };
 
 class Cross : public Road
@@ -109,19 +108,23 @@ public:
 
     float getIntersectionHeight() const;
 
-protected:
-    virtual ~Cross(){};
+    static int getTelemetryForcedPasses();
+    static int getTelemetryJamRecoveries();
+    static int getTelemetryRLFallbacks();
 
-    float intersectionHeight;  // Y offset (default 0)
+protected:
+    virtual ~Cross() {};
+
+    float intersectionHeight; // Y offset (default 0)
 
     struct OneStreet
     {
         Driveable *street;
-        std::vector<Vehicle*> vehicles;
+        std::vector<Vehicle *> vehicles;
         bool direction;
         Vec3 getJointPos() const;
 
-        std::vector<std::vector<int> > yield;
+        std::vector<std::vector<int>> yield;
     };
     std::vector<OneStreet> streets;
 
@@ -130,12 +133,23 @@ protected:
 
     virtual void tryPassVehiclesWithRightOfWay();
     virtual void tryPassAnyVehicle();
+    virtual int getTotalWaitingVehicles() const;
+    virtual void tryForceUnjamPass();
+
+    static void incrementTelemetryJamRecoveries();
+    static void incrementTelemetryRLFallbacks();
 
     void draw();
 
 private:
     bool isSet;
     int allowedVeh;
+    float noGrantTimer;
+    int roundRobinCursor;
+
+    static int telemetryForcedPasses;
+    static int telemetryJamRecoveries;
+    static int telemetryRLFallbacks;
 
     bool checkSet();
     void update(const float delta);
@@ -161,6 +175,14 @@ public:
     } durLight;
 
 private:
+    enum ControlState
+    {
+        CTRL_NORMAL,
+        CTRL_STARVATION_RECOVERY,
+        CTRL_GRIDLOCK_RECOVERY,
+        CTRL_FAILSAFE
+    };
+
     std::vector<bool> defaultPriority;
     std::vector<bool> curPriority;
 
@@ -179,6 +201,12 @@ private:
     float maxGreenDuration;
     bool phaseNS;
     bool useRL;
+    int rlFailureStreak;
+    float rlDisableTimer;
+    float starvationTimer;
+    float gridlockTimer;
+    ControlState controlState;
+    float controlStateTimer;
 
     RLTrafficClient rlClient;
 
