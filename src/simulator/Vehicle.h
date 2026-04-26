@@ -16,6 +16,7 @@ public:
 
     float getXPos() const;
     float getDstToCross() const;
+    static int getBridgeAnomalyCount();
 
     virtual void initRandValues();
     struct Adjustable
@@ -30,13 +31,15 @@ public:
     } specs;
 
 protected:
-    virtual ~Vehicle(){};
+    virtual ~Vehicle() {};
 
     float velocity;
     float xPos;
     bool isBraking;
+    int collisionLayer; // 0=ground, 1=elevated (AWAS)
 
     void update(const float delta);
+    void updateCollisionLayer();
 
     float getDst() const;
     bool isEnoughSpace() const;
@@ -46,6 +49,7 @@ protected:
         bool isChanging;
         bool didReachCross;
         bool isLeavingRoad;
+        float reservedSpaceAmount;
 
         float begRot;
         float endRot;
@@ -82,6 +86,7 @@ private:
     void leaveRoad();
     void setCornerPosition();
     void enterNewRoad();
+    float requiredSpaceForRoad(const Driveable *road) const;
 
     float dstToCross;
 
@@ -98,6 +103,8 @@ private:
     Vehicle *frontVeh;
     Vehicle *backVeh;
     bool isFirstVeh;
+
+    static int bridgeAnomalyCount;
 
     friend Garage;
     friend Cross;

@@ -14,11 +14,11 @@ PlayerCar::PlayerCar(Vec3 startPos)
     rot = Vec3(0, 0, 0);
 
     speed = 0.0f;
-    heading = 0.0f;       // facing +X initially
-    acceleration = 2.5f;
-    maxSpeed = 3.0f;
-    turnSpeed = 120.0f;   // degrees per second
-    friction = 1.2f;
+    heading = 0.0f; // facing +X initially
+    acceleration = 2.8f;
+    maxSpeed = 3.4f;
+    turnSpeed = 115.0f; // degrees per second at low speed
+    friction = 1.45f;
 
     oldPos = pos;
     oldHeading = heading;
@@ -48,62 +48,75 @@ void PlayerCar::revertPosition()
     heading = oldHeading;
     speed = 0.0f;
     // Keep rot in sync
-    rot.y = -heading;  // angleXZ convention: rot.y = -angle
+    rot.y = -heading; // angleXZ convention: rot.y = -angle
 }
 
 void PlayerCar::handleInput(unsigned int inputMap, const float delta)
 {
-    // Steering (only when moving)
-    // angleXZ() returns -atan2(z,x), so the visual rotation is -heading.
-    // LEFT arrow should turn the car visually left (decrease heading in math coords
-    // because the Z-flip makes CCW appear CW).
-    // RIGHT arrow should turn visually right (increase heading).
-    if (fabs(speed) > 0.05f)
+    // Steering response scales with speed for stability.
+    float speedAbs = fabs(speed);
+    if (speedAbs > 0.02f)
     {
         float steerFactor = 1.0f;
-        // Reduce turning at high speed for stability
-        if (fabs(speed) > 1.5f)
-            steerFactor = 1.5f / fabs(speed);
+        if (speedAbs > 1.2f)
+            steerFactor = 1.2f / speedAbs;
+        if (steerFactor < 0.35f)
+            steerFactor = 0.35f;
 
+        float signedSteer = 0.0f;
         if (inputMap & INPUT_STEER_LEFT)
-            heading += turnSpeed * steerFactor * delta;
+            signedSteer += 1.0f;
         if (inputMap & INPUT_STEER_RIGHT)
-            heading -= turnSpeed * steerFactor * delta;
+            signedSteer -= 1.0f;
+
+        heading += signedSteer * turnSpeed * steerFactor * delta;
     }
 
-    // Acceleration / braking
+    // Acceleration / braking with traction-aware shaping.
+    float accelGain = acceleration;
+    if (speed > maxSpeed * 0.7f)
+        accelGain *= 0.65f;
+
     if (inputMap & INPUT_ACCEL)
     {
-        speed += acceleration * delta;
-        if (speed > maxSpeed) speed = maxSpeed;
+        speed += accelGain * delta;
+        if (speed > maxSpeed)
+            speed = maxSpeed;
     }
     else if (inputMap & INPUT_BRAKE)
     {
-        speed -= acceleration * 1.5f * delta;
-        if (speed < -maxSpeed * 0.3f) speed = -maxSpeed * 0.3f;
+        float brakeGain = acceleration * 2.0f;
+        speed -= brakeGain * delta;
+        if (speed < -maxSpeed * 0.22f)
+            speed = -maxSpeed * 0.22f;
     }
     else
     {
-        // Friction deceleration
+        // Rolling resistance / drag toward zero.
         if (speed > 0)
         {
             speed -= friction * delta;
-            if (speed < 0) speed = 0;
+            if (speed < 0)
+                speed = 0;
         }
         else if (speed < 0)
         {
-            speed += friction * delta;
-            if (speed > 0) speed = 0;
+            speed += friction * 1.2f * delta;
+            if (speed > 0)
+                speed = 0;
         }
     }
+
+    // Clamp reverse speed and tiny oscillations.
+    if (speed < -maxSpeed * 0.22f)
+        speed = -maxSpeed * 0.22f;
+    if (fabs(speed) < 0.01f)
+        speed = 0.0f;
 
     // Update position
     Vec3 fwd = getForward();
     pos.x += fwd.x * speed * delta;
     pos.z += fwd.z * speed * delta;
-
-    // Keep on ground plane
-    pos.y = 0.0f;
 
     // Update rotation for rendering
     // angleXZ() convention: returns -atan2(z, x)
@@ -127,8 +140,8 @@ Vec3 PlayerCar::getCameraPos() const
     //   GL.z = world.z * -10  (Z-flip)
 
     Vec3 fwd = getForward();
-    float camDist = 18.0f;    // distance behind car (GL units)
-    float camHeight = 7.0f;   // height above car (GL units)
+    float camDist = 18.0f;  // distance behind car (GL units)
+    float camHeight = 7.0f; // height above car (GL units)
 
     // Car position in GL space
     float glX = pos.x * 10.0f;
@@ -150,7 +163,7 @@ Vec3 PlayerCar::getCameraTarget() const
 {
     // Target point slightly ahead of the car, in GL space
     Vec3 fwd = getForward();
-    float lookAhead = 10.0f;  // GL units
+    float lookAhead = 10.0f; // GL units
 
     float glX = pos.x * 10.0f;
     float glY = pos.y * 10.0f;
@@ -181,15 +194,24 @@ void PlayerCar::draw()
             float wx = fb * 0.065f;
             float wz = lr * 0.052f;
             setColor(0.10f, 0.10f, 0.10f);
-            pushMatrix(); translate(wx, 0.016f, wz); drawCube(0.032f, 0.032f, 0.016f); popMatrix();
+            pushMatrix();
+            translate(wx, 0.016f, wz);
+            drawCube(0.032f, 0.032f, 0.016f);
+            popMatrix();
             setColor(0.65f, 0.65f, 0.68f);
-            pushMatrix(); translate(wx, 0.016f, wz + lr * 0.009f); drawCube(0.018f, 0.018f, 0.003f); popMatrix();
+            pushMatrix();
+            translate(wx, 0.016f, wz + lr * 0.009f);
+            drawCube(0.018f, 0.018f, 0.003f);
+            popMatrix();
         }
     }
 
     // ========== UNDERCARRIAGE ==========
     setColor(0.08f, 0.08f, 0.08f);
-    pushMatrix(); translate(0, 0.008f, 0); drawCube(0.18f, 0.008f, 0.08f); popMatrix();
+    pushMatrix();
+    translate(0, 0.008f, 0);
+    drawCube(0.18f, 0.008f, 0.08f);
+    popMatrix();
 
     // ========== MAIN BODY ==========
     setColor(carColor);
@@ -214,8 +236,14 @@ void PlayerCar::draw()
 
     // Side skirts
     setColor(carColor * 0.5f);
-    pushMatrix(); translate(0, -0.022f, 0.053f); drawCube(0.19f, 0.006f, 0.004f); popMatrix();
-    pushMatrix(); translate(0, -0.022f, -0.053f); drawCube(0.19f, 0.006f, 0.004f); popMatrix();
+    pushMatrix();
+    translate(0, -0.022f, 0.053f);
+    drawCube(0.19f, 0.006f, 0.004f);
+    popMatrix();
+    pushMatrix();
+    translate(0, -0.022f, -0.053f);
+    drawCube(0.19f, 0.006f, 0.004f);
+    popMatrix();
 
     // Cabin / Roof
     drawRoof();
@@ -224,60 +252,121 @@ void PlayerCar::draw()
 
     // ========== FRONT GRILLE ==========
     setColor(0.18f, 0.18f, 0.20f);
-    pushMatrix(); translate(0.107f, 0.042f, 0); drawCube(0.004f, 0.025f, 0.06f); popMatrix();
+    pushMatrix();
+    translate(0.107f, 0.042f, 0);
+    drawCube(0.004f, 0.025f, 0.06f);
+    popMatrix();
     setColor(0.70f, 0.70f, 0.72f);
-    pushMatrix(); translate(0.108f, 0.048f, 0); drawCube(0.002f, 0.008f, 0.055f); popMatrix();
-    pushMatrix(); translate(0.108f, 0.038f, 0); drawCube(0.002f, 0.008f, 0.055f); popMatrix();
+    pushMatrix();
+    translate(0.108f, 0.048f, 0);
+    drawCube(0.002f, 0.008f, 0.055f);
+    popMatrix();
+    pushMatrix();
+    translate(0.108f, 0.038f, 0);
+    drawCube(0.002f, 0.008f, 0.055f);
+    popMatrix();
 
     // ========== HEADLIGHTS ==========
     int carPhase = Simulator::getInstance().getDayPhase();
     bool nightDriving = (carPhase == 0 || carPhase == 1 || carPhase == 5 || carPhase == 6);
 
     setColor(0.80f, 0.80f, 0.82f);
-    pushMatrix(); translate(0.107f, 0.05f, 0.038f); drawCube(0.006f, 0.018f, 0.022f); popMatrix();
-    pushMatrix(); translate(0.107f, 0.05f, -0.038f); drawCube(0.006f, 0.018f, 0.022f); popMatrix();
+    pushMatrix();
+    translate(0.107f, 0.05f, 0.038f);
+    drawCube(0.006f, 0.018f, 0.022f);
+    popMatrix();
+    pushMatrix();
+    translate(0.107f, 0.05f, -0.038f);
+    drawCube(0.006f, 0.018f, 0.022f);
+    popMatrix();
 
-    if (nightDriving) setColor(1.0f, 0.98f, 0.85f);
-    else setColor(0.95f, 0.93f, 0.80f);
-    pushMatrix(); translate(0.109f, 0.05f, 0.038f); drawCube(0.003f, 0.014f, 0.018f); popMatrix();
-    pushMatrix(); translate(0.109f, 0.05f, -0.038f); drawCube(0.003f, 0.014f, 0.018f); popMatrix();
+    if (nightDriving)
+        setColor(1.0f, 0.98f, 0.85f);
+    else
+        setColor(0.95f, 0.93f, 0.80f);
+    pushMatrix();
+    translate(0.109f, 0.05f, 0.038f);
+    drawCube(0.003f, 0.014f, 0.018f);
+    popMatrix();
+    pushMatrix();
+    translate(0.109f, 0.05f, -0.038f);
+    drawCube(0.003f, 0.014f, 0.018f);
+    popMatrix();
 
     if (nightDriving)
     {
         setColor(0.90f, 0.85f, 0.60f);
-        pushMatrix(); translate(0.14f, 0.045f, 0.038f); drawCube(0.05f, 0.008f, 0.015f); popMatrix();
-        pushMatrix(); translate(0.14f, 0.045f, -0.038f); drawCube(0.05f, 0.008f, 0.015f); popMatrix();
+        pushMatrix();
+        translate(0.14f, 0.045f, 0.038f);
+        drawCube(0.05f, 0.008f, 0.015f);
+        popMatrix();
+        pushMatrix();
+        translate(0.14f, 0.045f, -0.038f);
+        drawCube(0.05f, 0.008f, 0.015f);
+        popMatrix();
     }
 
     // ========== TAILLIGHTS ==========
-    if (nightDriving) setColor(0.80f, 0.05f, 0.05f);
-    else setColor(0.55f, 0.02f, 0.02f);
-    pushMatrix(); translate(-0.107f, 0.05f, 0.038f); drawCube(0.005f, 0.018f, 0.018f); popMatrix();
-    pushMatrix(); translate(-0.107f, 0.05f, -0.038f); drawCube(0.005f, 0.018f, 0.018f); popMatrix();
+    if (nightDriving)
+        setColor(0.80f, 0.05f, 0.05f);
+    else
+        setColor(0.55f, 0.02f, 0.02f);
+    pushMatrix();
+    translate(-0.107f, 0.05f, 0.038f);
+    drawCube(0.005f, 0.018f, 0.018f);
+    popMatrix();
+    pushMatrix();
+    translate(-0.107f, 0.05f, -0.038f);
+    drawCube(0.005f, 0.018f, 0.018f);
+    popMatrix();
 
     // Brake light when decelerating
     if (speed < -0.01f)
     {
         setColor(1, 0, 0);
-        pushMatrix(); translate(-0.05, 0.085, 0); drawCube(0.07, 0.003, 0.04); popMatrix();
+        pushMatrix();
+        translate(-0.05, 0.085, 0);
+        drawCube(0.07, 0.003, 0.04);
+        popMatrix();
     }
 
     // ========== BUMPERS ==========
     setColor(carColor * 0.55f);
-    pushMatrix(); translate(0.112f, 0.032f, 0); drawCube(0.006f, 0.022f, 0.095f); popMatrix();
-    pushMatrix(); translate(-0.112f, 0.032f, 0); drawCube(0.006f, 0.022f, 0.095f); popMatrix();
+    pushMatrix();
+    translate(0.112f, 0.032f, 0);
+    drawCube(0.006f, 0.022f, 0.095f);
+    popMatrix();
+    pushMatrix();
+    translate(-0.112f, 0.032f, 0);
+    drawCube(0.006f, 0.022f, 0.095f);
+    popMatrix();
 
     // ========== SIDE MIRRORS ==========
     setColor(carColor * 0.85f);
-    pushMatrix(); translate(0.04f, 0.068f, 0.056f); drawCube(0.012f, 0.008f, 0.008f); popMatrix();
-    pushMatrix(); translate(0.04f, 0.068f, -0.056f); drawCube(0.012f, 0.008f, 0.008f); popMatrix();
+    pushMatrix();
+    translate(0.04f, 0.068f, 0.056f);
+    drawCube(0.012f, 0.008f, 0.008f);
+    popMatrix();
+    pushMatrix();
+    translate(0.04f, 0.068f, -0.056f);
+    drawCube(0.012f, 0.008f, 0.008f);
+    popMatrix();
     setColor(0.50f, 0.55f, 0.60f);
-    pushMatrix(); translate(0.04f, 0.068f, 0.061f); drawCube(0.008f, 0.006f, 0.002f); popMatrix();
-    pushMatrix(); translate(0.04f, 0.068f, -0.061f); drawCube(0.008f, 0.006f, 0.002f); popMatrix();
+    pushMatrix();
+    translate(0.04f, 0.068f, 0.061f);
+    drawCube(0.008f, 0.006f, 0.002f);
+    popMatrix();
+    pushMatrix();
+    translate(0.04f, 0.068f, -0.061f);
+    drawCube(0.008f, 0.006f, 0.002f);
+    popMatrix();
 
     // ========== PLAYER INDICATOR — roof light bar ==========
     setColor(0.1f, 0.6f, 1.0f);
-    pushMatrix(); translate(0, 0.125f, 0); drawCube(0.04f, 0.008f, 0.06f); popMatrix();
+    pushMatrix();
+    translate(0, 0.125f, 0);
+    drawCube(0.04f, 0.008f, 0.06f);
+    popMatrix();
 }
 
 void PlayerCar::drawRoof()
@@ -320,7 +409,10 @@ void PlayerCar::drawRoof()
 
     // Window trim
     setColor(0.65f, 0.65f, 0.68f);
-    pushMatrix(); translate(0.093f, 0.024f, 0); drawCube(0.002f, 0.044f, 0.002f); popMatrix();
+    pushMatrix();
+    translate(0.093f, 0.024f, 0);
+    drawCube(0.002f, 0.044f, 0.002f);
+    popMatrix();
 
     popMatrix();
 }
