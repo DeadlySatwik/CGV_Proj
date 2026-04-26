@@ -1,347 +1,412 @@
-# Phase 6: Living City — Day/Night Cycle, Ambient Environment & Behavioral Realism
+# Phase 6: Living City — Full Logic Plan (Visual + Traffic Robustness)
 
-## The Problem
+## Objective
 
-Right now the city looks like a collection of objects floating on a black void. The sky is a flat blue, the ground beyond roads is featureless dark earth, lampposts are always the same brightness, traffic density never changes, and there's no sense of time passing. It feels like a tech demo, not a city.
+Deliver a complete, failure-aware implementation plan for a dynamic city cycle with strict handling of edge cases, including:
 
-## The Vision
+- day/night continuity,
+- bridge/elevation transitions (up/down ramps),
+- intersection control failures,
+- full-stop traffic jam conditions,
+- deterministic recovery behavior.
 
-Transform the simulation into a **living, breathing city** where:
-- Time flows from dawn → morning → noon → afternoon → evening → night → dawn
-- The sky, lighting, shadows, and fog shift continuously
-- Street lamps turn on at dusk, headlights glow at night
-- Rush hours create congestion, late nights empty the streets
-- Building windows glow warm at night
-- The ground has grass, sidewalk texture, and urban detail
+This plan is implementation-ready and removes unresolved logic gaps.
 
 ---
 
-## Sub-Phase 6A: Day/Night Time System (Core Clock)
+## Scope and Constraints
 
-### Files: `Simulator.h` + `Simulator.cpp`
-
-### Design
-Add a **world clock** that tracks simulated time of day as a float `0.0 → 24.0` (hours). Time advances at an accelerated rate relative to real time (e.g. 1 real second = 1 simulated minute → full day in 24 real minutes).
-
-```
-New members in Simulator.h:
-  float worldTime;          // 0.0-24.0 hours
-  float timeOfDaySpeed;     // sim-minutes per real-second (default: 1.0)
-  int   dayPhase;           // 0=night, 1=dawn, 2=morning, 3=noon, 4=afternoon, 5=evening, 6=dusk
-
-  void  updateWorldTime(float delta);
-  int   getDayPhase() const;
-  float getDayProgress() const;  // 0.0-1.0 within current phase
-```
-
-### Phase Boundaries
-
-| Phase | Hours | Description |
-|---|---|---|
-| **Night** | 0:00 – 5:00 | Dark, minimal traffic, street lights on |
-| **Dawn** | 5:00 – 7:00 | Gradual brightening, pink/orange sky, lights still on |
-| **Morning** | 7:00 – 9:00 | Rush hour begins, full brightness, lights off |
-| **Noon** | 9:00 – 15:00 | Bright daylight, moderate traffic |
-| **Afternoon** | 15:00 – 17:00 | Still bright, rush hour building |
-| **Evening** | 17:00 – 19:00 | Golden hour, lights turn on, heavy traffic |
-| **Dusk** | 19:00 – 21:00 | Fading light, orange/purple sky |
-| **Night** | 21:00 – 24:00 | Full dark, minimal traffic |
-
-### Key Binding
-- **N key** — cycle between time-of-day presets (jump to next phase instantly)
-- **M key** — toggle time flow on/off (freeze time for screenshots)
-- **HUD** — Print current time `[HH:MM]` to stdout every simulated hour
+- Keep existing fixed-function OpenGL architecture.
+- Do not change map file schema.
+- Preserve current object ownership model (`Simulator` owns `objects`, `spots`; roads/crosses own traffic queues).
+- Ensure every new behavior degrades safely when optional systems fail (e.g., RL server offline).
 
 ---
 
-## Sub-Phase 6B: Dynamic Sky & Lighting
+## Sub-Phase 6A — World Clock and Phase Model
 
-### Files: `Simulator.cpp` (redraw), `EngineCoreBase.cpp` (initLight)
+### Files
 
-### Sky Color Interpolation
+- `Simulator.h`
+- `Simulator.cpp`
 
-Instead of a fixed `glClearColor`, compute sky color by interpolating between phase palettes:
+### Required State
 
-| Phase | Sky Color | Ambient | Sun Direction | Sun Diffuse |
-|---|---|---|---|---|
-| Night | (0.02, 0.02, 0.06) deep navy | (0.08, 0.08, 0.12) | (0, 1, 0) overhead dim | (0.05, 0.05, 0.08) moonlight |
-| Dawn | (0.85, 0.55, 0.35) peach-orange | (0.25, 0.20, 0.18) | (0.8, 0.3, 0.2) low east | (0.90, 0.60, 0.40) warm orange |
-| Morning | (0.50, 0.70, 0.90) clear blue | (0.30, 0.30, 0.32) | (0.5, 0.8, 0.3) rising | (1.0, 0.95, 0.85) warm white |
-| Noon | (0.42, 0.62, 0.82) bright blue | (0.35, 0.35, 0.38) | (0.1, 1.0, 0.1) overhead | (1.0, 1.0, 0.95) pure white |
-| Afternoon | (0.45, 0.65, 0.85) | (0.32, 0.32, 0.35) | (−0.3, 0.9, −0.2) | (1.0, 0.95, 0.88) |
-| Evening | (0.80, 0.45, 0.25) golden | (0.28, 0.22, 0.18) | (−0.8, 0.3, −0.3) low west | (0.95, 0.65, 0.35) golden |
-| Dusk | (0.35, 0.18, 0.35) purple | (0.15, 0.12, 0.18) | (−0.9, 0.1, −0.2) horizon | (0.40, 0.20, 0.30) purple |
+- `worldTime` in `[0, 24)` hours.
+- `timeSpeed` in sim-minutes per real-second.
+- `timeFlowing` toggle.
+- `dayPhase` derived from time boundaries.
 
-### Implementation
-In `Simulator::redraw()`, BEFORE drawing anything:
-1. Compute `t = fractional progress within current phase` (0.0 → 1.0)
-2. Lerp sky color between current and next phase
-3. Call `glClearColor(sky.x, sky.y, sky.z, 1.0)` with the interpolated color
-4. Call `glLightfv(GL_LIGHT0, GL_POSITION, ...)` with interpolated sun direction
-5. Call `glLightfv(GL_LIGHT0, GL_AMBIENT, ...)` with interpolated ambient
-6. Call `glLightfv(GL_LIGHT0, GL_DIFFUSE, ...)` with interpolated diffuse
+### Phase Table (authoritative)
 
-> [!IMPORTANT]
-> The light position MUST be set AFTER the view matrix is applied but BEFORE any object transforms, since `GL_POSITION` is transformed by the current modelview matrix. With `w=0` (directional), OpenGL transforms the direction vector.
+| Phase     | Hours                       | Index |
+| --------- | --------------------------- | ----- |
+| Night     | 21:00–24:00 and 00:00–05:00 | 0     |
+| Dawn      | 05:00–07:00                 | 1     |
+| Morning   | 07:00–09:00                 | 2     |
+| Noon      | 09:00–15:00                 | 3     |
+| Afternoon | 15:00–17:00                 | 4     |
+| Evening   | 17:00–19:00                 | 5     |
+| Dusk      | 19:00–21:00                 | 6     |
 
-### Fog (Atmospheric Depth)
-Add distance fog for depth perception and atmosphere:
-```cpp
-glEnable(GL_FOG);
-glFogi(GL_FOG_MODE, GL_LINEAR);
-glFogfv(GL_FOG_COLOR, skyColor);  // fog matches sky
-glFogf(GL_FOG_START, 200.0f);     // start fading at 200 GL units (20 world)
-glFogf(GL_FOG_END, 600.0f);       // fully fogged at 600 GL units (60 world)
-```
-At night, bring fog closer (start=100, end=350) to simulate limited visibility. At noon, push fog far (start=300, end=800).
+### Invariants
+
+- `worldTime` always normalized to `[0, 24)` after update.
+- `dayPhase` must be recomputed after every `worldTime` change (including hotkey jumps).
+- Phase progress is always clamped `[0,1]`.
+- Logging format fixed as `[HH:MM] PhaseName`.
+
+### Controls
+
+- `N`: jump to next phase boundary.
+- `M`: pause/resume time flow.
+- `I`: print instant snapshot (time, phase, object/vehicle count).
 
 ---
 
-## Sub-Phase 6C: Ground & Terrain
+## Sub-Phase 6B — Dynamic Sky, Lighting, Fog
 
-### Files: `Simulator.cpp` (redraw)
+### Files
 
-### The Problem
-Currently a single dark-green quad. Replace with a layered ground system.
+- `Simulator.cpp` (`redraw`, lighting updater)
+- `EngineCoreBase.cpp` (static light setup only)
 
-### Design
+### Rules
 
-**Layer 1 — Base ground** (y = -ROAD_DEPTH - 0.005):
-- Large quad (120×120), color = grass green during day, dark grey-green at night
-- Color interpolates with day phase: bright `(0.22, 0.35, 0.15)` at noon → dark `(0.04, 0.06, 0.03)` at night
+- Apply camera/view first.
+- Apply dynamic `GL_LIGHT0` (`AMBIENT`, `DIFFUSE`, `POSITION`) after view matrix and before world-object transforms.
+- Interpolate from current phase palette to next phase palette via phase progress `t`.
+- Fog color follows sky color.
 
-**Layer 2 — Sidewalk extensions** (y = CURB_H):
-- For each road segment, draw concrete-colored strips extending 0.8 units perpendicular to road edges
-- Color: light grey `(0.55, 0.53, 0.50)` — simulates sidewalks beyond the road curbs
-- This fills the gap between the road edge and the buildings/trees
+### Fog Profile
 
-**Layer 3 — Block fill** (y = 0.0):
-- Between groups of 4 intersections (each city block), draw a filled grass/park quad
-- Color: slightly lighter grass `(0.18, 0.30, 0.12)` — gives the "park" areas between buildings
+- Night-biased near fog; noon-biased far fog.
+- Always enforce `fogEnd > fogStart + epsilon` to avoid degenerate fog state.
 
-**Layer 4 — Road markings (optional but impactful)**:
-- Center dashed line on each road segment (white dashes at regular intervals)
-- Stop lines at intersection approaches (solid white line)
+### Failure Guards
+
+- If interpolation index computation fails, fall back to current phase palette.
+- If `t` invalid (`NaN/inf`), force `t=0`.
 
 ---
 
-## Sub-Phase 6D: Street Light Behavior
+## Sub-Phase 6C — Ground/Terrain Layers
 
-### Files: `Environment.cpp` + `Environment.h`
+### File
 
-### Current State
-Lampposts always render the lamp head as solid yellow `(0.95, 0.85, 0.35)`.
+- `Simulator.cpp`
 
-### Design
-Add day-phase awareness to Lamppost. The lamp color changes:
+### Rendering Order
 
-| Phase | Lamp Color | Glow Cube |
-|---|---|---|
-| Day (morning/noon/afternoon) | Off — dark grey `(0.30, 0.30, 0.30)` | None |
-| Evening/Dusk | Warm on — `(0.95, 0.85, 0.35)` | Add glow cube (slightly larger, semi-transparent yellow) |
-| Night | Bright on — `(1.0, 0.92, 0.50)` | Larger glow |
-| Dawn | Flickering off — alternate between on/off every few seconds | Dimming |
+1. Base ground (large quad, interpolated by phase).
+2. Existing road/cross geometry.
+3. Optional enhancement overlays only if geometry data available and cheap.
 
-### Accessing World Time
-The `Lamppost::draw()` needs to know the current day phase. Options:
-1. **Static global** — add `static int Simulator::currentDayPhase` accessible from anywhere
-2. **Pass via drawObject()** — modify `drawObject()` to accept time... too invasive
-3. **Best: static accessor** — `Simulator::getInstance().getDayPhase()` since Simulator is a singleton
+### Hard Rule
 
-Use option 3. Call `Simulator::getInstance()` from Environment objects to query the time.
-
-> [!WARNING]
-> `Simulator::getInstance()` returns a reference. The `getDayPhase()` method must be public. Currently `cameraPos` and `cameraRot` are public, so adding `getDayPhase()` as public is consistent.
+- Do not introduce z-fighting with road surfaces: all decorative ground surfaces must remain below road top or with deterministic epsilon.
 
 ---
 
-## Sub-Phase 6E: Vehicle Headlights & Night Behavior
+## Sub-Phase 6D — Streetlights
 
-### Files: `Vehicle.cpp`
+### Files
 
-### Design
-Vehicles turn headlights on during evening/night/dawn:
+- `Environment.cpp`
+- `Environment.h`
 
-**Car::draw()** changes:
-- During evening/night/dawn: headlight lens color becomes bright white `(1.0, 0.98, 0.85)` instead of muted `(0.95, 0.93, 0.80)`
-- Add a "headlight beam" — a semi-transparent elongated cube projecting forward from each headlight (very subtle, just a hint)
-- Taillight glow: red cubes slightly enlarged during night (simulates glow bleed)
+### Behavior Matrix
 
-**Bus::draw()** changes:
-- Same headlight/taillight logic
-- Interior lights: window glass color changes from dark tint `(0.12, 0.22, 0.30)` at day to warm interior `(0.65, 0.55, 0.35)` at night (passengers visible)
+- Morning/Noon/Afternoon: lamp off.
+- Evening/Dusk: warm on.
+- Night: brightest on.
+- Dawn: dim/transition behavior.
 
-### Accessing Day Phase
-Same pattern: `Simulator::getInstance().getDayPhase()`
+### Access Pattern
 
----
+- Query phase via `Simulator::getInstance().getDayPhase()`.
 
-## Sub-Phase 6F: Building Window Glow at Night
+### Failure Guard
 
-### Files: `Garage.cpp`
-
-### Design
-Currently window glass is always dark teal `(0.18, 0.35, 0.42)`. At night, some windows should glow warm yellow/white (occupied rooms).
-
-**Implementation:**
-- Query day phase
-- During evening/night: change window glass color to a mix:
-  - ~60% of windows: warm glow `(0.85, 0.75, 0.45)` — occupied
-  - ~40% of windows: dark `(0.10, 0.12, 0.15)` — empty
-  - Use `(floor * 7 + col * 13 + hash) % 10 < 6` to deterministically select which windows are lit
-- During dawn: reduce to ~30% lit (people waking up)
-- During day: all windows are reflective teal (current behavior)
-
-This creates a beautiful night cityscape where buildings have varied patterns of warm lit windows.
+- If phase is out-of-range, default to lamp-on safe mode for visibility.
 
 ---
 
-## Sub-Phase 6G: Traffic Density by Time of Day
+## Sub-Phase 6E — Vehicle Night Mode
 
-### Files: `Garage.cpp` + `Garage.h`
+### File
 
-### Current State
-Garages spawn vehicles at a fixed `frecSpot` interval and have a fixed `maxVehicles` cap.
+- `Vehicle.cpp`
 
-### Design
-Modulate spawn rate and vehicle cap by time of day:
+### Behavior
 
-| Phase | Spawn Rate Multiplier | Max Vehicles Multiplier | Notes |
-|---|---|---|---|
-| Night (0-5) | 0.15× | 0.2× | Nearly empty streets |
-| Dawn (5-7) | 0.5× | 0.4× | Early commuters |
-| Morning Rush (7-9) | 2.0× | 1.5× | Peak congestion |
-| Noon (9-15) | 1.0× | 1.0× | Normal baseline |
-| Afternoon (15-17) | 1.2× | 1.1× | Building up |
-| Evening Rush (17-19) | 2.0× | 1.5× | Peak again |
-| Dusk (19-21) | 0.6× | 0.5× | Winding down |
-| Late Night (21-24) | 0.2× | 0.25× | Very quiet |
+- Night phases (`Night`, `Dawn`, `Evening`, `Dusk`) enable brighter headlight lenses and beam hints.
+- Stronger taillight glow under low-light phases.
+- Bus interior glass transitions to warm lit tint at night.
 
-**Implementation in `Garage::update()`:**
-```cpp
-int phase = Simulator::getInstance().getDayPhase();
-float spawnMult = spawnMultipliers[phase];
-float effectiveFrec = frecSpot / spawnMult;   // lower frec = faster spawn
-int effectiveMax = (int)(maxVehicles * maxMultipliers[phase]);
-```
+### Constraint
 
-### Bus Schedule
-Bus garages get an additional modifier: buses run more during rush hours and barely at night:
-- Morning/Evening rush: 2.5× bus spawn rate
-- Night: 0.05× (almost no buses)
+- Visual effects must remain purely cosmetic; no physics/path changes in draw path.
 
 ---
 
-## Sub-Phase 6H: HUD / Time Display
+## Sub-Phase 6F — Building Window Occupancy Glow
 
-### Files: `Simulator.cpp`
+### File
 
-### Design
-Display the current simulated time on screen. Since this is fixed-function OpenGL without text rendering, the simplest approach is:
+- `Garage.cpp`
 
-**Option A (stdout):** Print `[HH:MM]` and day phase name to stdout every simulated minute or when phase changes. Simple, no rendering changes.
+### Deterministic Lit Pattern
 
-**Option B (on-screen):** Use `glRasterPos2f` + `glutBitmapCharacter` for basic text... but this requires GLUT which isn't linked.
+- Use hash-based deterministic per-window selection.
+- Night/evening lit ratio target: ~60%.
+- Dawn lit ratio target: ~30%.
+- Daytime: reflective tint only.
 
-**Recommendation:** Use **Option A** (stdout). Print every time the phase changes:
-```
-[05:00] ☀ Dawn
-[07:00] 🌅 Morning Rush
-[09:00] ☀ Noon
-...
-[21:00] 🌙 Night
-```
+### Guard
 
-Additionally, pressing **I** (info) prints the current time, phase, and vehicle count to stdout.
+- Pattern must remain stable frame-to-frame (no temporal flicker unless explicitly designed).
 
 ---
 
-## File Impact Summary
+## Sub-Phase 6G — Time-Based Traffic Density
 
-| File | Changes |
-|---|---|
-| **Simulator.h** | Add `worldTime`, `timeOfDaySpeed`, `dayPhase`, time methods, make `getDayPhase()` public |
-| **Simulator.cpp** | `updateWorldTime()` in `update()`, dynamic sky/lighting/fog in `redraw()`, ground layers, N/M/I keys |
-| **EngineCoreBase.cpp** | Remove static `glClearColor` (moved to `redraw()`), remove static light position (moved to `redraw()`) |
-| **Environment.h** | No changes needed |
-| **Environment.cpp** | Lamppost: query day phase, toggle lamp on/off with glow |
-| **Vehicle.cpp** | Car/Bus: query day phase, headlights bright at night, bus interior glow |
-| **Garage.cpp** | Window glow at night, spawn rate/max modulation by time |
-| **Garage.h** | Optional: add spawn multiplier arrays |
-| **Road.cpp** | ❌ NOT MODIFIED — road geometry stays locked |
-| **ObjectsLoader.cpp** | ❌ NOT MODIFIED |
+### Files
 
----
+- `Garage.cpp`
+- `Garage.h` (optional constants)
 
-## Execution Order
+### Multipliers (authoritative)
 
-```mermaid
-graph TD
-    A["6A: World Clock<br/>Simulator.h/cpp<br/>worldTime, dayPhase"] --> B["6B: Dynamic Sky & Lighting<br/>Simulator.cpp, EngineCoreBase.cpp<br/>sky lerp, sun direction, fog"]
-    B --> C["6C: Ground & Terrain<br/>Simulator.cpp redraw<br/>grass, sidewalk fill"]
-    C --> D["6D: Street Light Behavior<br/>Environment.cpp<br/>on/off by phase"]
-    D --> E["6E: Vehicle Headlights<br/>Vehicle.cpp<br/>night driving mode"]
-    E --> F["6F: Building Window Glow<br/>Garage.cpp<br/>warm lit windows at night"]
-    F --> G["6G: Traffic Density<br/>Garage.cpp<br/>rush hour / night modulation"]
-    G --> H["6H: HUD / Info<br/>Simulator.cpp<br/>time display, I key"]
-```
+| Phase     | Spawn Mult | Max Vehicle Mult |
+| --------- | ---------: | ---------------: |
+| Night     |       0.15 |             0.20 |
+| Dawn      |       0.50 |             0.40 |
+| Morning   |       2.00 |             1.50 |
+| Noon      |       1.00 |             1.00 |
+| Afternoon |       1.20 |             1.10 |
+| Evening   |       2.00 |             1.50 |
+| Dusk      |       0.60 |             0.50 |
 
-> [!TIP]
-> Sub-phases A+B are the most impactful — they transform the entire visual feel in one step. If you want the "wow" moment quickly, start there and add the rest incrementally.
+### Effective Values
+
+- `effectiveFrec = frecSpot / spawnMult`
+- `effectiveMax = max(2, int(maxVehicles * maxMult))`
+
+### Bus-Specific Rule
+
+- Apply additional bus multiplier:
+  - Morning/Evening: ×2.5
+  - Night: ×0.05
+  - others: ×1.0
 
 ---
 
-## Controls Summary (New Keys)
+## Sub-Phase 6H — Runtime Info Output
 
-| Key | Action |
-|---|---|
-| **N** | Jump to next day phase (Night → Dawn → Morning → ...) |
-| **M** | Toggle time flow on/off (freeze for screenshots) |
-| **I** | Print current time, phase, and vehicle count to stdout |
-| **P** | Projection toggle (existing) |
+### File
 
----
+- `Simulator.cpp`
 
-## Expected Visual Result
+### Output Events
 
-### Noon
-- Bright blue sky, strong white sunlight from overhead
-- Sharp shadows on buildings, bright green grass between roads
-- Lampposts off (grey lamps), building windows dark teal (reflective)
-- Full traffic on all roads
+- Phase transition print.
+- `I` key print for point-in-time diagnostics.
 
-### Evening (Golden Hour)
-- Orange-golden sky, low warm sunlight from the west
-- Long warm shadows, golden highlights on building facades
-- Lampposts turning on with warm yellow glow
-- Heavy traffic, buses running frequently
-- Building windows beginning to glow warm
+### Required Fields
 
-### Night
-- Deep navy sky, very dim ambient moonlight
-- Close fog (limited visibility, mysterious depth)
-- All lampposts bright with glow halos
-- Vehicle headlights bright white, taillights glowing red
-- Bus interiors lit warm yellow (visible through windows)
-- 60% of building windows glowing warm (occupied rooms)
-- Very light traffic — empty roads, occasional lone car
-
-### Dawn
-- Peach/pink/orange sky gradient
-- Low warm light from east
-- Lampposts flickering off
-- Traffic slowly increasing
-- Some building windows still lit, fading
+- Time (`HH:MM`)
+- Phase name
+- Vehicle count estimate
+- Object count
 
 ---
 
-## Open Questions
+## Sub-Phase 6I — Bridge/Elevation Robustness (Critical)
 
-> [!IMPORTANT]
-> **Time acceleration rate**: 1 real second = 1 sim minute means a full day takes 24 real minutes. Is this too fast or too slow? Alternatives: 0.5 min/sec (48 min cycle) or 2 min/sec (12 min cycle).
+### Files
 
-> [!IMPORTANT]
-> **Fog**: Enabling `GL_FOG` will affect ALL rendering including close objects. If performance drops or it looks bad, we can skip fog and rely only on sky color changes. Should I include fog or keep it optional?
+- `Road.cpp`
+- `Vehicle.cpp`
+- `Garage.cpp`
+- `Simulator.cpp` (diagnostic counters)
 
-> [!IMPORTANT]
-> **Ground sidewalk extensions (6C Layer 2)**: Drawing concrete strips beside every road requires knowing road positions and directions in `Simulator::redraw()`. This info lives in the road objects. Should I iterate objects and draw sidewalk extensions there, or keep the ground simple (just color-changing grass)?
+### Problem Class
+
+Elevation roads and intersections (`position.y > 0`) create edge cases where vehicles can:
+
+- visually float,
+- clip into ramps/intersections,
+- stall at grade transitions,
+- deadlock due to layer mismatches or queue ordering.
+
+### Mandatory Invariants
+
+1. **Height continuity**
+   - For any transition `road -> cross -> nextRoad`, end height and entry height must be continuous within epsilon.
+2. **Collision layer coherence**
+   - Vehicles on elevated segments must keep elevated collision layer until fully transitioned.
+3. **Monotonic progress**
+   - During cross/turn state, progress toward next road cannot oscillate backward.
+4. **Queue correctness**
+   - Enter/leave events must preserve queue push/pop symmetry on both directions.
+
+### Edge Cases and Logic
+
+#### Case A: Uphill entry congestion
+
+- Risk: front vehicles slow sharply; trailing vehicles compress and stop permanently.
+- Rule: clamp minimum progress speed for vehicles already granted crossing permission.
+
+#### Case B: Downhill overrun near cross
+
+- Risk: overshoot causes invalid position or abrupt snapping.
+- Rule: cap `xPos` to segment length before state transition; transition atomically.
+
+#### Case C: Elevated-to-ground mismatch
+
+- Risk: sudden y-jump when next road has lower height.
+- Rule: transition interpolation uses joint points from both segments; never mix flat and elevated anchors.
+
+#### Case D: Bridge pass-through nodes (2-way links)
+
+- Risk: `allowedVeh` accumulation causes phantom grants/stalls.
+- Rule: pass-through nodes must not accumulate grants across frames; treat as immediate-through logic.
+
+#### Case E: Spawn on steep ramp blocked forever
+
+- Risk: garage keeps trying to spawn but head cannot clear.
+- Rule: spawn timer advances only when headway threshold is satisfied; otherwise backoff without burst spawning.
+
+### Runtime Assertions (debug mode)
+
+- Vehicle y-height deviation from road profile > epsilon increments anomaly counter.
+- Negative queue sizes / impossible pop attempts raise hard error.
+- `reservedSpace` underflow/overflow is blocked and logged.
+
+---
+
+## Sub-Phase 6J — Traffic Control Failure/Jam Recovery (Critical)
+
+### Files
+
+- `Road.cpp` (`Cross`, `CrossLights`)
+- `Garage.cpp`
+- `Simulator.cpp` (global diagnostics)
+
+### Failure Types
+
+1. **Local starvation**: one approach never gets clearance.
+2. **Global freeze**: many vehicles stop, throughput near zero.
+3. **RL control degradation**: RL server unreachable/invalid actions.
+4. **Crosslock cycle**: vehicles mutually waiting under right-of-way constraints.
+
+### Detection Metrics
+
+- Per-intersection:
+  - queue lengths per approach,
+  - time since last vehicle granted,
+  - grants per rolling window.
+- Global:
+  - moving count of vehicles with near-zero velocity,
+  - throughput per time window,
+  - number of intersections with `allowedVeh == 0` while queues exist.
+
+### Recovery State Machine (per controlled intersection)
+
+| State               | Entry Condition                                         | Action                                                        | Exit Condition              |
+| ------------------- | ------------------------------------------------------- | ------------------------------------------------------------- | --------------------------- |
+| NORMAL              | default                                                 | regular priority / RL assist                                  | starvation timer exceeded   |
+| STARVATION_RECOVERY | one approach starving                                   | force grant from starved approach if safe                     | starvation cleared          |
+| GRIDLOCK_RECOVERY   | no grants + queues on all/most approaches for threshold | temporary all-red break then deterministic alternating grants | throughput resumes          |
+| FAILSAFE            | repeated RL/action failures                             | disable RL, fixed deterministic schedule                      | stable operation window met |
+
+### Non-Negotiable Safeguards
+
+- RL action out-of-range => ignore and keep deterministic fallback.
+- No intersection may remain with waiting queues and zero grants beyond timeout without escalation.
+- If all vehicles nearly stopped for prolonged window, reduce spawn multipliers temporarily (anti-jam dampening).
+
+### Deterministic Unjam Procedure
+
+1. Freeze new grants for short break interval.
+2. Pick approach with oldest waiting head vehicle.
+3. Grant one vehicle if downstream free-space allows.
+4. Repeat with round-robin fairness and timeout cap.
+5. Restore normal mode once rolling throughput threshold recovered.
+
+---
+
+## Sub-Phase 6K — Diagnostics and Acceptance Gates
+
+### Files
+
+- `Simulator.cpp`
+- `Road.cpp`
+- `Garage.cpp`
+
+### Required Counters
+
+- `vehiclesSpawned`, `vehiclesDeleted`
+- `crossGrantsPerMinute`
+- `stalledVehicleCount`
+- `jamRecoveryActivations`
+- `bridgeAnomalyCount`
+
+### Acceptance Criteria
+
+1. **Visual continuity**: full 24h cycle with no palette discontinuities.
+2. **Bridge stability**: no persistent floating/clipping on elevated network over long run.
+3. **Traffic liveness**: no permanent standstill under sustained simulation.
+4. **Control resilience**: RL disconnection does not halt traffic lights or movement.
+5. **Deterministic fallback**: repeated runs with same inputs produce same control fallback behavior.
+
+---
+
+## File Impact Summary (Complete)
+
+| File                 | Planned Logic Impact                                                                        |
+| -------------------- | ------------------------------------------------------------------------------------------- |
+| `Simulator.h`        | clock state, phase accessors, diagnostic access points                                      |
+| `Simulator.cpp`      | world-time update, sky/light/fog, ground base, logging, jam diagnostics                     |
+| `EngineCoreBase.cpp` | static-only light baseline, dynamic values set in redraw path                               |
+| `Environment.cpp`    | phase-aware lamppost visuals                                                                |
+| `Vehicle.cpp`        | night-mode visuals, bridge transition stability hooks                                       |
+| `Garage.cpp`         | window glow, phase-based spawn control, anti-jam spawn dampening                            |
+| `Garage.h`           | optional static multiplier tables and constants                                             |
+| `Road.cpp`           | cross priority, light-controller resilience, deadlock recovery, elevation continuity checks |
+| `ObjectsLoader.cpp`  | unchanged schema; source of map/elevation inputs                                            |
+
+---
+
+## Execution Order (No Logic Gaps)
+
+1. Stabilize clock/phase invariants (`6A`).
+2. Apply dynamic sky/light/fog with strict matrix ordering (`6B`).
+3. Finalize base ground layering (`6C`).
+4. Complete phase-bound visual actors (`6D`, `6E`, `6F`).
+5. Enable time-based spawn modulation (`6G`).
+6. Add bridge/elevation invariants and anomaly instrumentation (`6I`).
+7. Add jam detection + recovery FSM + deterministic fallback (`6J`).
+8. Add diagnostics and verify acceptance gates (`6K`).
+
+---
+
+## Final Control Keys
+
+| Key | Action                               |
+| --- | ------------------------------------ |
+| `N` | Jump to next day phase boundary      |
+| `M` | Pause/resume world time              |
+| `I` | Print time/phase/traffic diagnostics |
+| `P` | Projection toggle                    |
+
+---
+
+## Plan Decisions (Resolved)
+
+- Time acceleration default: **2.0 sim-minutes/sec**.
+- Fog: **enabled with phase-dependent distance profile**.
+- Sidewalk/ground complexity: **retain simple base-ground-first approach; no geometry-heavy per-road expansion unless profiling permits**.
+
+This phase plan is complete and includes bridge transitions plus traffic-control failure handling for full-stop jam scenarios.

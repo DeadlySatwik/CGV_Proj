@@ -41,6 +41,13 @@ public:
     Vec3 getDirection() const;
     float getLength() const;
 
+    // Height / elevation support (AWAS)
+    float getHeightAt(float t) const;
+    float getBegHeight() const;
+    float getEndHeight() const;
+    bool isElevated() const;
+    int getCollisionLayer() const;  // 0=ground, 1=elevated
+
 protected:
     Driveable(Cross *begCross, Cross *endCross);
     Driveable(Vec3 p, Cross *endCross);
@@ -54,6 +61,9 @@ protected:
 
     Vec3 begJoint;
     Vec3 endJoint;
+
+    float begHeight;   // Y offset at begPos (default 0)
+    float endHeight;   // Y offset at endPos (default 0)
 
     Vec3 getBegJointWidth(const bool dir) const;
     Vec3 getEndJointWidth(const bool dir) const;
@@ -69,6 +79,7 @@ protected:
     Cross* crossEnd;
 
     void draw();
+    void drawElevatedSupports();  // pylons + railings
 
 private:
     float reservedSpaceBeg;
@@ -94,8 +105,12 @@ public:
     Cross(Vec3 position);
     virtual void setDefaultPriority(Driveable *s0 = nullptr, Driveable *s1 = nullptr, Driveable *s2 = nullptr, Driveable *s3 = nullptr);
 
+    float getIntersectionHeight() const;
+
 protected:
     virtual ~Cross(){};
+
+    float intersectionHeight;  // Y offset (default 0)
 
     struct OneStreet
     {

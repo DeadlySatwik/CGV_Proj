@@ -35,8 +35,10 @@ protected:
     float velocity;
     float xPos;
     bool isBraking;
+    int collisionLayer;   // 0=ground, 1=elevated (AWAS)
 
     void update(const float delta);
+    void updateCollisionLayer();
 
     float getDst() const;
     bool isEnoughSpace() const;

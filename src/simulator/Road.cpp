@@ -31,6 +31,10 @@ Driveable::Driveable(Cross *begCross, Cross *endCross)
     begPos = crossBeg->getPos();
     endPos = crossEnd->getPos();
 
+    // Inject intersection heights before commonConstructor extracts them
+    begPos.y = crossBeg->getIntersectionHeight();
+    endPos.y = crossEnd->getIntersectionHeight();
+
     commonConstructor();
 
     Cross::OneStreet temp;
@@ -54,6 +58,7 @@ Driveable::Driveable(Vec3 p, Cross *endCross)
 
     begPos = pos;
     endPos = crossEnd->getPos();
+    endPos.y = crossEnd->getIntersectionHeight();  // inject height
 
     commonConstructor();
 
@@ -67,6 +72,12 @@ Driveable::Driveable(Vec3 p, Cross *endCross)
 
 void Driveable::commonConstructor()
 {
+    // Extract Y as height, then flatten for XZ path calculations
+    begHeight = begPos.y;
+    endHeight = endPos.y;
+    begPos.y = 0;
+    endPos.y = 0;
+
     direction = endPos - begPos;
     direction.normalize();
 
@@ -77,6 +88,20 @@ void Driveable::commonConstructor()
 
     reservedSpaceBeg = 0;
     reservedSpaceEnd = 0;
+}
+
+// ===== Height / Elevation accessors =====
+float Driveable::getHeightAt(float t) const {
+    return begHeight + (endHeight - begHeight) * t;
+}
+float Driveable::getBegHeight() const { return begHeight; }
+float Driveable::getEndHeight() const { return endHeight; }
+bool Driveable::isElevated() const {
+    return (begHeight > 0.05f || endHeight > 0.05f);
+}
+int Driveable::getCollisionLayer() const {
+    float maxH = (begHeight > endHeight) ? begHeight : endHeight;
+    return (maxH > 0.3f) ? 1 : 0;
 }
 
 float Driveable::freeSpace(const bool dir) const
@@ -111,22 +136,32 @@ Vec3 Driveable::getDirection() const
 
 Vec3 Driveable::getBegJointWidth(const bool dir) const
 {
+    Vec3 p;
     if (dir)
     {
-        return begJoint + normal * 0.1;
+        p = begJoint + normal * 0.1;
     }
-
-    return begJoint - normal * 0.1;
+    else
+    {
+        p = begJoint - normal * 0.1;
+    }
+    p.y = begHeight;   // inject elevation
+    return p;
 }
 
 Vec3 Driveable::getEndJointWidth(const bool dir) const
 {
+    Vec3 p;
     if (dir)
     {
-        return endJoint + normal * 0.1;
+        p = endJoint + normal * 0.1;
     }
-
-    return endJoint - normal * 0.1;
+    else
+    {
+        p = endJoint - normal * 0.1;
+    }
+    p.y = endHeight;   // inject elevation
+    return p;
 }
 
 void Driveable::draw()
@@ -136,13 +171,14 @@ void Driveable::draw()
     float hw = 0.3f; // road half-width
     szer *= hw;
 
-    // Road corners at top surface (y=0)
-    Vec3 a = endPos + szer;  // end-left
-    Vec3 b = endPos - szer;  // end-right
-    Vec3 c = begPos + szer;  // beg-left
-    Vec3 d = begPos - szer;  // beg-right
+    // Road corners at top surface — now height-aware
+    Vec3 a = endPos + szer;  a.y = endHeight;   // end-left
+    Vec3 b = endPos - szer;  b.y = endHeight;   // end-right
+    Vec3 c = begPos + szer;  c.y = begHeight;   // beg-left
+    Vec3 d = begPos - szer;  d.y = begHeight;   // beg-right
 
-    float depth = -ROAD_DEPTH;
+    float depthA = endHeight - ROAD_DEPTH;
+    float depthC = begHeight - ROAD_DEPTH;
 
     // ---- 1. Top surface (road asphalt) ----
     setColor(roadColor);
@@ -156,120 +192,122 @@ void Driveable::draw()
     beginDraw(QUADS);
     setNormal(normal.x, 0, normal.z);
     drawQuad(c, a,
-             Vec3(a.x, depth, a.z),
-             Vec3(c.x, depth, c.z));
+             Vec3(a.x, depthA, a.z),
+             Vec3(c.x, depthC, c.z));
     endDraw();
 
     // ---- 3. Right side wall ----
     beginDraw(QUADS);
     setNormal(-normal.x, 0, -normal.z);
     drawQuad(b, d,
-             Vec3(d.x, depth, d.z),
-             Vec3(b.x, depth, b.z));
+             Vec3(d.x, depthC, d.z),
+             Vec3(b.x, depthA, b.z));
     endDraw();
 
     // ---- 4. Bottom face ----
     setColor(Vec3(0.12f, 0.12f, 0.12f));
     beginDraw(QUADS);
     setNormal(0, 1, 0);
-    drawQuad(Vec3(c.x, depth, c.z), Vec3(d.x, depth, d.z),
-             Vec3(b.x, depth, b.z), Vec3(a.x, depth, a.z));
+    drawQuad(Vec3(c.x, depthC, c.z), Vec3(d.x, depthC, d.z),
+             Vec3(b.x, depthA, b.z), Vec3(a.x, depthA, a.z));
     endDraw();
 
     // ---- 5. Curbs (raised edges) ----
     Vec3 curbN = szer;
     curbN.normalize();
     curbN *= CURB_W;
-    float cy = CURB_H;
+    float cyC = begHeight + CURB_H;
+    float cyA = endHeight + CURB_H;
 
     setColor(curbColor);
 
     // Left curb - top face
     beginDraw(QUADS);
     setNormal(0, -1, 0);
-    drawQuad(Vec3(c.x, cy, c.z), Vec3(c.x - curbN.x, cy, c.z - curbN.z),
-             Vec3(a.x - curbN.x, cy, a.z - curbN.z), Vec3(a.x, cy, a.z));
+    drawQuad(Vec3(c.x, cyC, c.z), Vec3(c.x - curbN.x, cyC, c.z - curbN.z),
+             Vec3(a.x - curbN.x, cyA, a.z - curbN.z), Vec3(a.x, cyA, a.z));
     endDraw();
     // Left curb - outer face
     beginDraw(QUADS);
     setNormal(normal.x, 0, normal.z);
-    drawQuad(Vec3(c.x, cy, c.z), Vec3(a.x, cy, a.z),
+    drawQuad(Vec3(c.x, cyC, c.z), Vec3(a.x, cyA, a.z),
              a, c);
     endDraw();
     // Left curb - inner face
     beginDraw(QUADS);
     setNormal(-normal.x, 0, -normal.z);
-    drawQuad(Vec3(a.x - curbN.x, cy, a.z - curbN.z),
-             Vec3(c.x - curbN.x, cy, c.z - curbN.z),
-             Vec3(c.x - curbN.x, 0, c.z - curbN.z),
-             Vec3(a.x - curbN.x, 0, a.z - curbN.z));
+    drawQuad(Vec3(a.x - curbN.x, cyA, a.z - curbN.z),
+             Vec3(c.x - curbN.x, cyC, c.z - curbN.z),
+             Vec3(c.x - curbN.x, begHeight, c.z - curbN.z),
+             Vec3(a.x - curbN.x, endHeight, a.z - curbN.z));
     endDraw();
 
     // Right curb - top face
     beginDraw(QUADS);
     setNormal(0, -1, 0);
-    drawQuad(Vec3(d.x + curbN.x, cy, d.z + curbN.z), Vec3(d.x, cy, d.z),
-             Vec3(b.x, cy, b.z), Vec3(b.x + curbN.x, cy, b.z + curbN.z));
+    drawQuad(Vec3(d.x + curbN.x, cyC, d.z + curbN.z), Vec3(d.x, cyC, d.z),
+             Vec3(b.x, cyA, b.z), Vec3(b.x + curbN.x, cyA, b.z + curbN.z));
     endDraw();
     // Right curb - outer face
     beginDraw(QUADS);
     setNormal(-normal.x, 0, -normal.z);
-    drawQuad(Vec3(b.x, cy, b.z), Vec3(d.x, cy, d.z),
+    drawQuad(Vec3(b.x, cyA, b.z), Vec3(d.x, cyC, d.z),
              d, b);
     endDraw();
     // Right curb - inner face
     beginDraw(QUADS);
     setNormal(normal.x, 0, normal.z);
-    drawQuad(Vec3(d.x + curbN.x, cy, d.z + curbN.z),
-             Vec3(b.x + curbN.x, cy, b.z + curbN.z),
-             Vec3(b.x + curbN.x, 0, b.z + curbN.z),
-             Vec3(d.x + curbN.x, 0, d.z + curbN.z));
+    drawQuad(Vec3(d.x + curbN.x, cyC, d.z + curbN.z),
+             Vec3(b.x + curbN.x, cyA, b.z + curbN.z),
+             Vec3(b.x + curbN.x, endHeight, b.z + curbN.z),
+             Vec3(d.x + curbN.x, begHeight, d.z + curbN.z));
     endDraw();
 
-    // ---- 6. Sidewalk strips ----
-    Vec3 swN = szer;
-    swN.normalize();
-    swN *= SIDEWALK_W;
-    float swY = CURB_H - 0.005f;
+    // ---- 6. Sidewalk strips (skip for elevated to keep clean look) ----
+    if (!isElevated())
+    {
+        Vec3 swN = szer;
+        swN.normalize();
+        swN *= SIDEWALK_W;
+        float swY = CURB_H - 0.005f;
 
-    setColor(Vec3(0.45f, 0.44f, 0.40f));
-    // Left sidewalk
-    beginDraw(QUADS);
-    setNormal(0, -1, 0);
-    drawQuad(Vec3(c.x, swY, c.z),
-             Vec3(c.x + swN.x, swY, c.z + swN.z),
-             Vec3(a.x + swN.x, swY, a.z + swN.z),
-             Vec3(a.x, swY, a.z));
-    endDraw();
-    // Left sidewalk side wall
-    beginDraw(QUADS);
-    setNormal(normal.x, 0, normal.z);
-    drawQuad(Vec3(c.x + swN.x, swY, c.z + swN.z),
-             Vec3(a.x + swN.x, swY, a.z + swN.z),
-             Vec3(a.x + swN.x, depth, a.z + swN.z),
-             Vec3(c.x + swN.x, depth, c.z + swN.z));
-    endDraw();
+        setColor(Vec3(0.45f, 0.44f, 0.40f));
+        // Left sidewalk
+        beginDraw(QUADS);
+        setNormal(0, -1, 0);
+        drawQuad(Vec3(c.x, swY, c.z),
+                 Vec3(c.x + swN.x, swY, c.z + swN.z),
+                 Vec3(a.x + swN.x, swY, a.z + swN.z),
+                 Vec3(a.x, swY, a.z));
+        endDraw();
+        // Left sidewalk side wall
+        beginDraw(QUADS);
+        setNormal(normal.x, 0, normal.z);
+        drawQuad(Vec3(c.x + swN.x, swY, c.z + swN.z),
+                 Vec3(a.x + swN.x, swY, a.z + swN.z),
+                 Vec3(a.x + swN.x, -ROAD_DEPTH, a.z + swN.z),
+                 Vec3(c.x + swN.x, -ROAD_DEPTH, c.z + swN.z));
+        endDraw();
 
-    // Right sidewalk
-    beginDraw(QUADS);
-    setNormal(0, -1, 0);
-    drawQuad(Vec3(d.x - swN.x, swY, d.z - swN.z),
-             Vec3(d.x, swY, d.z),
-             Vec3(b.x, swY, b.z),
-             Vec3(b.x - swN.x, swY, b.z - swN.z));
-    endDraw();
-    // Right sidewalk side wall
-    beginDraw(QUADS);
-    setNormal(-normal.x, 0, -normal.z);
-    drawQuad(Vec3(d.x - swN.x, swY, d.z - swN.z),
-             Vec3(b.x - swN.x, swY, b.z - swN.z),
-             Vec3(b.x - swN.x, depth, b.z - swN.z),
-             Vec3(d.x - swN.x, depth, d.z - swN.z));
-    endDraw();
+        // Right sidewalk
+        beginDraw(QUADS);
+        setNormal(0, -1, 0);
+        drawQuad(Vec3(d.x - swN.x, swY, d.z - swN.z),
+                 Vec3(d.x, swY, d.z),
+                 Vec3(b.x, swY, b.z),
+                 Vec3(b.x - swN.x, swY, b.z - swN.z));
+        endDraw();
+        // Right sidewalk side wall
+        beginDraw(QUADS);
+        setNormal(-normal.x, 0, -normal.z);
+        drawQuad(Vec3(d.x - swN.x, swY, d.z - swN.z),
+                 Vec3(b.x - swN.x, swY, b.z - swN.z),
+                 Vec3(b.x - swN.x, -ROAD_DEPTH, b.z - swN.z),
+                 Vec3(d.x - swN.x, -ROAD_DEPTH, d.z - swN.z));
+        endDraw();
+    }
 
-    // ---- 7. Lane markings ----
-    float markY = 0.002f;
-    // Dashed center line
+    // ---- 7. Lane markings (follow slope) ----
     setColor(markingColor);
     int numDashes = (int)(length / 0.25f);
     if (numDashes < 2) numDashes = 2;
@@ -281,8 +319,10 @@ void Driveable::draw()
         float t1 = (float)(i + 1) / (float)numDashes;
         Vec3 p0 = Vec3::lerp(begPos, endPos, t0);
         Vec3 p1 = Vec3::lerp(begPos, endPos, t1);
-        drawVertex(Vec3(p0.x, markY, p0.z));
-        drawVertex(Vec3(p1.x, markY, p1.z));
+        float y0 = getHeightAt(t0) + 0.002f;
+        float y1 = getHeightAt(t1) + 0.002f;
+        drawVertex(Vec3(p0.x, y0, p0.z));
+        drawVertex(Vec3(p1.x, y1, p1.z));
     }
     endDraw();
 
@@ -293,20 +333,113 @@ void Driveable::draw()
     edgeN.normalize();
     edgeN *= edgeOff;
     beginDraw(LINES);
-    drawVertex(Vec3(begPos.x + edgeN.x, markY, begPos.z + edgeN.z));
-    drawVertex(Vec3(endPos.x + edgeN.x, markY, endPos.z + edgeN.z));
-    drawVertex(Vec3(begPos.x - edgeN.x, markY, begPos.z - edgeN.z));
-    drawVertex(Vec3(endPos.x - edgeN.x, markY, endPos.z - edgeN.z));
+    drawVertex(Vec3(begPos.x + edgeN.x, begHeight + 0.002f, begPos.z + edgeN.z));
+    drawVertex(Vec3(endPos.x + edgeN.x, endHeight + 0.002f, endPos.z + edgeN.z));
+    drawVertex(Vec3(begPos.x - edgeN.x, begHeight + 0.002f, begPos.z - edgeN.z));
+    drawVertex(Vec3(endPos.x - edgeN.x, endHeight + 0.002f, endPos.z - edgeN.z));
     endDraw();
+
+    // ---- 8. Elevated road supports ----
+    if (isElevated())
+    {
+        drawElevatedSupports();
+    }
+}
+
+void Driveable::drawElevatedSupports()
+{
+    // ---- Concrete pylons ----
+    setColor(0.38f, 0.38f, 0.40f);
+    int numPylons = (int)(length / 2.0f);
+    if (numPylons < 1) numPylons = 1;
+
+    for (int p = 0; p <= numPylons; p++)
+    {
+        float t = (float)p / (float)(numPylons > 0 ? numPylons : 1);
+        Vec3 pylonPos = Vec3::lerp(begPos, endPos, t);
+        float pylonH = getHeightAt(t);
+
+        if (pylonH > 0.08f)
+        {
+            // Main column
+            pushMatrix();
+            translate(pylonPos.x, pylonH * 0.5f - ROAD_DEPTH, pylonPos.z);
+            drawCube(0.06f, pylonH, 0.06f);
+            popMatrix();
+
+            // Column base (wider)
+            pushMatrix();
+            setColor(0.32f, 0.32f, 0.35f);
+            translate(pylonPos.x, 0.015f, pylonPos.z);
+            drawCube(0.10f, 0.03f, 0.10f);
+            popMatrix();
+
+            setColor(0.38f, 0.38f, 0.40f);
+        }
+    }
+
+    // ---- Railing posts (along both edges) ----
+    Vec3 szer = Vec3::cross(Vec3(0,1,0), direction);
+    szer.normalize();
+    float railOff = 0.28f;  // just inside the road edge
+
+    setColor(0.50f, 0.50f, 0.52f);  // metal grey
+    int numPosts = (int)(length / 0.3f);
+    if (numPosts < 2) numPosts = 2;
+
+    for (int p = 0; p <= numPosts; p++)
+    {
+        float t = (float)p / (float)numPosts;
+        Vec3 rp = Vec3::lerp(begPos, endPos, t);
+        float rh = getHeightAt(t);
+
+        if (rh > 0.08f)
+        {
+            // Left railing post
+            pushMatrix();
+            translate(rp.x + szer.x * railOff, rh + CURB_H + 0.04f, rp.z + szer.z * railOff);
+            drawCube(0.008f, 0.08f, 0.008f);
+            popMatrix();
+
+            // Right railing post
+            pushMatrix();
+            translate(rp.x - szer.x * railOff, rh + CURB_H + 0.04f, rp.z - szer.z * railOff);
+            drawCube(0.008f, 0.08f, 0.008f);
+            popMatrix();
+        }
+    }
+
+    // Horizontal rail bars (connecting posts)
+    if (length > 0.3f && (begHeight > 0.08f || endHeight > 0.08f))
+    {
+        setColor(0.45f, 0.45f, 0.48f);
+        // Left rail bar
+        pushMatrix();
+        Vec3 mid = Vec3::lerp(begPos, endPos, 0.5f);
+        float midH = getHeightAt(0.5f);
+        translate(mid.x + szer.x * railOff, midH + CURB_H + 0.065f, mid.z + szer.z * railOff);
+        drawCube(length * 0.5f, 0.006f, 0.006f);
+        popMatrix();
+
+        // Right rail bar
+        pushMatrix();
+        translate(mid.x - szer.x * railOff, midH + CURB_H + 0.065f, mid.z - szer.z * railOff);
+        drawCube(length * 0.5f, 0.006f, 0.006f);
+        popMatrix();
+    }
 }
 
 Cross::Cross(Vec3 position)
 {
+    intersectionHeight = position.y;  // extract height
     pos = position;
+    pos.y = 0;  // flatten for XZ logic
     allowedVeh = 0;
 
     isSet = false;
 }
+
+float Cross::getIntersectionHeight() const { return intersectionHeight; }
 
 void Cross::update(const float delta)
 {
@@ -348,7 +481,16 @@ void Cross::updateCross(const float delta)
 {
     if (checkSet()) return;
 
-    if (allowedVeh == 0 || streets.size() <= 2)
+    // For 2-way pass-through nodes, aggressively clear allowedVeh
+    // since there's no cross-traffic conflict
+    if (streets.size() <= 2)
+    {
+        tryPassVehiclesWithRightOfWay();
+        // Don't let allowedVeh accumulate — these are just pass-throughs
+        return;
+    }
+
+    if (allowedVeh == 0)
     {
         tryPassVehiclesWithRightOfWay();
 
@@ -537,15 +679,16 @@ Vec3 Cross::OneStreet::getJointPos() const
 void Cross::draw()
 {
     float a = 0.3f;  // half-size (matching 0.6 tile)
-    float depth = -ROAD_DEPTH;
-    float cy = CURB_H;
-    float markY = 0.002f;
+    float h = intersectionHeight;  // height offset
+    float depth = h - ROAD_DEPTH;
+    float cy = h + CURB_H;
+    float markY = h + 0.002f;
 
     // ---- 1. Top surface ----
     setColor(roadColor);
     beginDraw(QUADS);
     setNormal(0, -1, 0);
-    drawQuad(Vec3(-a, 0, -a), Vec3(a, 0, -a), Vec3(a, 0, a), Vec3(-a, 0, a));
+    drawQuad(Vec3(-a, h, -a), Vec3(a, h, -a), Vec3(a, h, a), Vec3(-a, h, a));
     endDraw();
 
     // ---- 2. Four side walls ----
@@ -553,25 +696,25 @@ void Cross::draw()
     // Front (-Z face)
     beginDraw(QUADS);
     setNormal(0, 0, -1);
-    drawQuad(Vec3(-a, 0, -a), Vec3(a, 0, -a),
+    drawQuad(Vec3(-a, h, -a), Vec3(a, h, -a),
              Vec3(a, depth, -a), Vec3(-a, depth, -a));
     endDraw();
     // Back (+Z face)
     beginDraw(QUADS);
     setNormal(0, 0, 1);
-    drawQuad(Vec3(a, 0, a), Vec3(-a, 0, a),
+    drawQuad(Vec3(a, h, a), Vec3(-a, h, a),
              Vec3(-a, depth, a), Vec3(a, depth, a));
     endDraw();
     // Left (-X face)
     beginDraw(QUADS);
     setNormal(-1, 0, 0);
-    drawQuad(Vec3(-a, 0, a), Vec3(-a, 0, -a),
+    drawQuad(Vec3(-a, h, a), Vec3(-a, h, -a),
              Vec3(-a, depth, -a), Vec3(-a, depth, a));
     endDraw();
     // Right (+X face)
     beginDraw(QUADS);
     setNormal(1, 0, 0);
-    drawQuad(Vec3(a, 0, -a), Vec3(a, 0, a),
+    drawQuad(Vec3(a, h, -a), Vec3(a, h, a),
              Vec3(a, depth, a), Vec3(a, depth, -a));
     endDraw();
 
@@ -592,8 +735,8 @@ void Cross::draw()
         for (int cz = -1; cz <= 1; cz += 2)
         {
             pushMatrix();
-            translate(cx * cp, cy * 0.5f, cz * cp);
-            drawCube(cpSize, cy, cpSize);
+            translate(cx * cp, h + CURB_H * 0.5f, cz * cp);
+            drawCube(cpSize, CURB_H, cpSize);
             popMatrix();
         }
     }
@@ -608,6 +751,31 @@ void Cross::draw()
         drawVertex(Vec3(-a, markY, s)); drawVertex(Vec3(a, markY, s));
     }
     endDraw();
+
+    // ---- 6. Support pylons for elevated intersections ----
+    if (h > 0.08f)
+    {
+        setColor(0.38f, 0.38f, 0.40f);
+        // Center pylon
+        pushMatrix();
+        translate(0, h * 0.5f - ROAD_DEPTH, 0);
+        drawCube(0.08f, h, 0.08f);
+        popMatrix();
+
+        // Corner pylons (thinner)
+        float pylOff = a * 0.6f;
+        setColor(0.35f, 0.35f, 0.38f);
+        for (int px = -1; px <= 1; px += 2)
+        {
+            for (int pz = -1; pz <= 1; pz += 2)
+            {
+                pushMatrix();
+                translate(px * pylOff, h * 0.5f - ROAD_DEPTH, pz * pylOff);
+                drawCube(0.05f, h, 0.05f);
+                popMatrix();
+            }
+        }
+    }
 }
 
 void CrossLights::setDefaultPriority(Driveable *s0, Driveable *s1, Driveable *s2, Driveable *s3)

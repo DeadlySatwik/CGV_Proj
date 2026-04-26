@@ -18,6 +18,7 @@ Vehicle::Vehicle(Driveable *spawnRoad)
     xPos = 0;
 
     isBraking = false;
+    collisionLayer = 0;
 
     dstToCross = 1000;
     direction = true;
@@ -35,11 +36,11 @@ Vehicle::Vehicle(Driveable *spawnRoad)
 
 void Vehicle::initRandValues()
 {
-    specs.maxV = randFloat(1, 1.5);
+    specs.maxV = randFloat(1.2, 1.8);
     specs.minV = randFloat(0.02, 0.08);
-    specs.cornerVelocity = 1;
-    specs.stopTime = randFloat(0.5, 0.8);
-    specs.acceleration = randFloat(0.1,0.2);
+    specs.cornerVelocity = 1.4;
+    specs.stopTime = randFloat(0.4, 0.7);
+    specs.acceleration = randFloat(0.15, 0.25);
     specs.remainDst = randFloat(0.06, 0.08);
 }
 
@@ -87,7 +88,19 @@ void Vehicle::update(const float delta)
         checkVelocity(delta, prevVelocity);
         setNewPos();
 
-        if (curRoad->getLength() - xPos < 2.4 && curCross == nullptr)
+        // Register to cross: use shorter distance for 2-way pass-through nodes
+        float registerDst = 2.4f;
+        if (curCross == nullptr)
+        {
+            // Peek at the upcoming cross to check if it's 2-way
+            Cross* upcomingCross = direction ? curRoad->crossEnd : curRoad->crossBeg;
+            if (upcomingCross != nullptr && upcomingCross->streets.size() <= 2)
+            {
+                registerDst = 0.6f;  // don't brake early for pass-through nodes
+            }
+        }
+
+        if (curRoad->getLength() - xPos < registerDst && curCross == nullptr)
         {
             registerToCross();
         }
@@ -100,7 +113,14 @@ void Vehicle::update(const float delta)
 
     if (crossState.isChanging)
     {
-        xPos += specs.cornerVelocity * delta;
+        // Use higher speed for 2-way pass-through nodes
+        float crossSpeed = specs.cornerVelocity;
+        if (curCross != nullptr && curCross->streets.size() <= 2)
+        {
+            crossSpeed = specs.maxV * 0.85f;  // near full speed
+        }
+
+        xPos += crossSpeed * delta;
 
         float s = xPos / curRoad->getLength();
 
@@ -113,6 +133,15 @@ void Vehicle::update(const float delta)
             pos = Vec3::lerp(curRoad->getEndJointWidth(direction), curRoad->getBegJointWidth(direction), s);
         }
 
+        // Pitch rotation on ramps (tilt vehicle to match slope)
+        if (curRoad->isElevated())
+        {
+            float dH = curRoad->getEndHeight() - curRoad->getBegHeight();
+            if (!direction) dH = -dH;
+            float pitch = atan2(dH, curRoad->getLength()) * 180.0f / 3.14159f;
+            rot = Vec3(pitch, curRoad->getDirection().angleXZ() + (direction ? 0 : 180), 0);
+        }
+
         if(s > 1)
         {
             leaveRoad();
@@ -121,7 +150,13 @@ void Vehicle::update(const float delta)
 
     if (crossState.didReachCross)
     {
-        xPos += specs.cornerVelocity * delta;
+        float crossSpeed = specs.cornerVelocity;
+        if (curCross != nullptr && curCross->streets.size() <= 2)
+        {
+            crossSpeed = specs.maxV * 0.85f;
+        }
+
+        xPos += crossSpeed * delta;
 
         setCornerPosition();
 
@@ -132,6 +167,17 @@ void Vehicle::update(const float delta)
     }
 
     blinker.updateBlinkers(delta);
+
+    // Update collision layer based on current road height
+    updateCollisionLayer();
+}
+
+void Vehicle::updateCollisionLayer()
+{
+    if (curRoad != nullptr)
+    {
+        collisionLayer = curRoad->getCollisionLayer();
+    }
 }
 
 void Vehicle::setVelocity()
@@ -211,6 +257,15 @@ void Vehicle::setNewPos()
     }
 
     dstToCross = curRoad->getLength() - xPos;
+
+    // Pitch rotation on ramps (tilt vehicle to match slope)
+    if (curRoad->isElevated())
+    {
+        float dH = curRoad->getEndHeight() - curRoad->getBegHeight();
+        if (!direction) dH = -dH;
+        float pitch = atan2(dH, curRoad->getLength()) * 180.0f / 3.14159f;
+        rot = Vec3(pitch, curRoad->getDirection().angleXZ() + (direction ? 0 : 180), 0);
+    }
 }
 
 void Vehicle::registerToCross()
@@ -374,6 +429,12 @@ void Vehicle::enterNewRoad()
     crossState.isLeavingRoad = false;
 
     velocity = specs.cornerVelocity;
+
+    // Preserve momentum through 2-way pass-through nodes
+    if (curCross != nullptr && curCross->streets.size() <= 2)
+    {
+        velocity = specs.maxV * 0.8f;
+    }
 
     curRoad = curCross->streets[desiredTurn].street;
 
