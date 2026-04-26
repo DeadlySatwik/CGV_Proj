@@ -14,6 +14,7 @@
 #include "EngineCore/EngineCore.h"
 #include "EngineCore/Graphics.h"
 #include "ObjectsLoader.h"
+#include "PlayerCar.h"
 
 class GameObject;
 
@@ -28,6 +29,15 @@ public:
     Vec3 cameraRot;
 
     void run();
+
+    // Player car
+    PlayerCar *playerCar;
+    bool thirdPersonMode;
+    unsigned int playerInputMap;
+
+    // Vehicle cap
+    int globalMaxVehicles;
+    int getActiveVehicleCount() const;
 
     // Day/Night cycle — public so Environment/Vehicle/Garage can query
     int getDayPhase() const;
@@ -86,6 +96,7 @@ private:
     void cameraMove(const float delta);
     void updateCameraVectors();
     void setupProjection();
+    bool isOnRoad(Vec3 testPos) const;  // road constraint for player car
 
     const float CAMERA_VELOCITY;
 

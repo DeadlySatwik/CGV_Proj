@@ -181,13 +181,10 @@ void Lamppost::draw()
 //  BENCH — brown wooden seat + backrest
 // ============================================================
 
-Bench::Bench(Vec3 position)
+Bench::Bench(Vec3 position, float rotationAngle)
 {
     pos = position;
-    // Rotation based on position hash
-    int h = (int)(pos.x * 11 + pos.z * 17);
-    if (h < 0) h = -h;
-    angle = (h % 4) * 90.0f;
+    angle = rotationAngle;
 }
 
 void Bench::draw()
@@ -216,5 +213,31 @@ void Bench::draw()
     pushMatrix(); translate(-0.06f, 0.02f,-0.02f); drawCube(0.01f, 0.04f, 0.01f); popMatrix();
     pushMatrix(); translate( 0.06f, 0.02f,-0.02f); drawCube(0.01f, 0.04f, 0.01f); popMatrix();
 
+    popMatrix();
+}
+
+// ============================================================
+//  DUSTBIN — small cylindrical-ish or cube trash can
+// ============================================================
+
+Dustbin::Dustbin(Vec3 position)
+{
+    pos = position;
+}
+
+void Dustbin::draw()
+{
+    // --- Main Body ---
+    setColor(0.2f, 0.22f, 0.2f); // dark grey-green
+    pushMatrix();
+    translate(0, 0.05f, 0);
+    drawCube(0.06f, 0.1f, 0.06f);
+    popMatrix();
+
+    // --- Rim/Lid ---
+    setColor(0.15f, 0.15f, 0.15f); // darker rim
+    pushMatrix();
+    translate(0, 0.105f, 0);
+    drawCube(0.065f, 0.01f, 0.065f);
     popMatrix();
 }

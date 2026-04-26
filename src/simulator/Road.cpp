@@ -171,11 +171,11 @@ void Driveable::draw()
     float hw = 0.3f; // road half-width
     szer *= hw;
 
-    // Road corners at top surface — now height-aware
-    Vec3 a = endPos + szer;  a.y = endHeight;   // end-left
-    Vec3 b = endPos - szer;  b.y = endHeight;   // end-right
-    Vec3 c = begPos + szer;  c.y = begHeight;   // beg-left
-    Vec3 d = begPos - szer;  d.y = begHeight;   // beg-right
+    // Road corners at top surface (y=0) - drawn from joint to joint to avoid crossing into intersections
+    Vec3 a = endJoint + szer;  // end-left
+    Vec3 b = endJoint - szer;  // end-right
+    Vec3 c = begJoint + szer;  // beg-left
+    Vec3 d = begJoint - szer;  // beg-right
 
     float depthA = endHeight - ROAD_DEPTH;
     float depthC = begHeight - ROAD_DEPTH;
@@ -281,6 +281,7 @@ void Driveable::draw()
                  Vec3(a.x, swY, a.z));
         endDraw();
         // Left sidewalk side wall
+    setColor(sideColor);
         beginDraw(QUADS);
         setNormal(normal.x, 0, normal.z);
         drawQuad(Vec3(c.x + swN.x, swY, c.z + swN.z),
@@ -290,6 +291,7 @@ void Driveable::draw()
         endDraw();
 
         // Right sidewalk
+    setColor(Vec3(0.45f, 0.44f, 0.40f));
         beginDraw(QUADS);
         setNormal(0, -1, 0);
         drawQuad(Vec3(d.x - swN.x, swY, d.z - swN.z),
@@ -298,6 +300,7 @@ void Driveable::draw()
                  Vec3(b.x - swN.x, swY, b.z - swN.z));
         endDraw();
         // Right sidewalk side wall
+    setColor(sideColor);
         beginDraw(QUADS);
         setNormal(-normal.x, 0, -normal.z);
         drawQuad(Vec3(d.x - swN.x, swY, d.z - swN.z),
@@ -309,7 +312,8 @@ void Driveable::draw()
 
     // ---- 7. Lane markings (follow slope) ----
     setColor(markingColor);
-    int numDashes = (int)(length / 0.25f);
+    float jointLength = Vec3::dst(begJoint, endJoint);
+    int numDashes = (int)(jointLength / 0.25f);
     if (numDashes < 2) numDashes = 2;
     beginDraw(LINES);
     for (int i = 0; i < numDashes; i++)
@@ -317,8 +321,8 @@ void Driveable::draw()
         if (i % 2 != 0) continue;
         float t0 = (float)i / (float)numDashes;
         float t1 = (float)(i + 1) / (float)numDashes;
-        Vec3 p0 = Vec3::lerp(begPos, endPos, t0);
-        Vec3 p1 = Vec3::lerp(begPos, endPos, t1);
+        Vec3 p0 = Vec3::lerp(begJoint, endJoint, t0);
+        Vec3 p1 = Vec3::lerp(begJoint, endJoint, t1);
         float y0 = getHeightAt(t0) + 0.002f;
         float y1 = getHeightAt(t1) + 0.002f;
         drawVertex(Vec3(p0.x, y0, p0.z));
@@ -333,10 +337,10 @@ void Driveable::draw()
     edgeN.normalize();
     edgeN *= edgeOff;
     beginDraw(LINES);
-    drawVertex(Vec3(begPos.x + edgeN.x, begHeight + 0.002f, begPos.z + edgeN.z));
-    drawVertex(Vec3(endPos.x + edgeN.x, endHeight + 0.002f, endPos.z + edgeN.z));
-    drawVertex(Vec3(begPos.x - edgeN.x, begHeight + 0.002f, begPos.z - edgeN.z));
-    drawVertex(Vec3(endPos.x - edgeN.x, endHeight + 0.002f, endPos.z - edgeN.z));
+    drawVertex(Vec3(begJoint.x + edgeN.x, begHeight + 0.002f, begJoint.z + edgeN.z));
+    drawVertex(Vec3(endJoint.x + edgeN.x, endHeight + 0.002f, endJoint.z + edgeN.z));
+    drawVertex(Vec3(begJoint.x - edgeN.x, begHeight + 0.002f, begJoint.z - edgeN.z));
+    drawVertex(Vec3(endJoint.x - edgeN.x, endHeight + 0.002f, endJoint.z - edgeN.z));
     endDraw();
 
     // ---- 8. Elevated road supports ----
@@ -741,6 +745,72 @@ void Cross::draw()
         }
     }
 
+    // ---- 4.5. Missing boundaries (curbs + sidewalks) for unconnected sides ----
+    bool hasRoad[4] = {false, false, false, false}; // +X, -X, +Z, -Z
+    for (const auto& st : streets) {
+        Vec3 dir = st.street->getDirection();
+        if (!st.direction) dir = Vec3(0,0,0) - dir; // Reverse direction (OUT of cross)
+        if (dir.x > 0.5f) hasRoad[0] = true;
+        else if (dir.x < -0.5f) hasRoad[1] = true;
+        else if (dir.z > 0.5f) hasRoad[2] = true;
+        else if (dir.z < -0.5f) hasRoad[3] = true;
+    }
+
+    float curbCenter = a - CURB_W * 0.5f;
+    float swCenter = a + SIDEWALK_W * 0.5f;
+    float swY = cy - 0.005f;
+    float swH = swY - depth;
+    float swCY = depth + swH * 0.5f;
+    float span = 2 * a;
+    float spanSW = 2 * a + 2 * SIDEWALK_W; // extended to cover corners
+
+    for (int i = 0; i < 4; i++) {
+        if (!hasRoad[i]) {
+            float cx = (i == 0) ? 1 : (i == 1) ? -1 : 0;
+            float cz = (i == 2) ? 1 : (i == 3) ? -1 : 0;
+            
+            // Draw Curb (inward from 'a')
+            setColor(curbColor);
+            pushMatrix();
+            translate(cx * curbCenter, cy * 0.5f, cz * curbCenter);
+            if (i < 2) drawCube(CURB_W, cy, span);
+            else drawCube(span, cy, CURB_W);
+            popMatrix();
+
+            // Draw Sidewalk (outward from 'a')
+            setColor(Vec3(0.45f, 0.44f, 0.40f));
+            pushMatrix();
+            translate(cx * swCenter, swCY, cz * swCenter);
+            if (i < 2) drawCube(SIDEWALK_W, swH, spanSW);
+            else drawCube(spanSW, swH, SIDEWALK_W);
+            popMatrix();
+
+            // Draw outermost side wall using sideColor
+            setColor(sideColor);
+            float outEdge = a + SIDEWALK_W;
+            float spanHalf = spanSW * 0.5f;
+            beginDraw(QUADS);
+            if (i == 0) { // +X
+                setNormal(1, 0, 0);
+                drawQuad(Vec3(outEdge, depth, -spanHalf), Vec3(outEdge, depth, spanHalf),
+                         Vec3(outEdge, swY, spanHalf), Vec3(outEdge, swY, -spanHalf));
+            } else if (i == 1) { // -X
+                setNormal(-1, 0, 0);
+                drawQuad(Vec3(-outEdge, depth, spanHalf), Vec3(-outEdge, depth, -spanHalf),
+                         Vec3(-outEdge, swY, -spanHalf), Vec3(-outEdge, swY, spanHalf));
+            } else if (i == 2) { // +Z
+                setNormal(0, 0, 1);
+                drawQuad(Vec3(spanHalf, depth, outEdge), Vec3(-spanHalf, depth, outEdge),
+                         Vec3(-spanHalf, swY, outEdge), Vec3(spanHalf, swY, outEdge));
+            } else if (i == 3) { // -Z
+                setNormal(0, 0, -1);
+                drawQuad(Vec3(-spanHalf, depth, -outEdge), Vec3(spanHalf, depth, -outEdge),
+                         Vec3(spanHalf, swY, -outEdge), Vec3(-spanHalf, swY, -outEdge));
+            }
+            endDraw();
+        }
+    }
+
     // ---- 5. Subtle crosshatch marking ----
     setColor(Vec3(0.35f, 0.35f, 0.35f));
     beginDraw(LINES);
@@ -1000,12 +1070,66 @@ void CrossLights::draw()
     }
 }
 
+#include "Environment.h"
+
 Street::Street(Cross *begCross, Cross *endCross) : Driveable(begCross, endCross)
 {
+    float len = getLength();
+    Vec3 dir = getDirection();
+    Vec3 norm = getNormal();
+    
+    // Sidewalk is centered at HW + SIDEWALK_W/2
+    float offsetDist = 0.3f + 0.08f / 2.0f; 
+    
+    float jointLength = Vec3::dst(begJoint, endJoint);
+    int numSpots = (int)(jointLength / 2.0f); 
+    if (numSpots < 1) return; // Street too short
 
+    float step = jointLength / (numSpots + 1);
+    
+    for (int side = -1; side <= 1; side += 2)
+    {
+        for (int i = 1; i <= numSpots; i++)
+        {
+            Vec3 basePos = begJoint + dir * (step * i);
+            Vec3 pos = basePos + norm * (offsetDist * side);
+            
+            // Deterministic hash based on world position
+            unsigned int hash = (unsigned int)(pos.x * 1337 + pos.z * 8191);
+            if ((hash % 100) < 50) // 50% chance of a prop at this spot
+            {
+                int type = (hash >> 3) % 4; // 0=Tree, 1=Lamppost, 2=Bench, 3=Dustbin
+                if (type == 0) sidewalkProps.push_back(new Tree(pos));
+                else if (type == 1) sidewalkProps.push_back(new Lamppost(pos));
+                else if (type == 2) 
+                {
+                    // Align bench with the street
+                    // Benches face inwards: side=1 (left side) -> rotate -90, side=-1 (right side) -> rotate +90
+                    float benchAngle = dir.angleXZ() + (side == 1 ? -90.0f : 90.0f);
+                    sidewalkProps.push_back(new Bench(pos, benchAngle));
+                }
+                else if (type == 3) sidewalkProps.push_back(new Dustbin(pos));
+            }
+        }
+    }
+}
+
+Street::~Street()
+{
+    for (auto prop : sidewalkProps)
+    {
+        delete prop;
+    }
+    sidewalkProps.clear();
 }
 
 void Street::draw()
 {
     Driveable::draw();
+    
+    // Draw procedural props
+    for (auto prop : sidewalkProps)
+    {
+        prop->drawObject();
+    }
 }

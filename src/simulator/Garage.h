@@ -32,6 +32,14 @@ private:
     int spottedVehicles;
     int maxVehicles;
 
+    // ---- Gate animation ----
+    enum GateState { GATE_CLOSED, GATE_OPENING, GATE_OPEN, GATE_CLOSING };
+    GateState gateState;
+    float gateAngle;       // 0 = closed (vertical), 90 = fully open (horizontal)
+    float gateTimer;       // time gate stays fully open before closing
+    static const float GATE_SPEED;    // degrees per second
+    static const float GATE_HOLD;     // seconds gate stays open
+
     friend Simulator;
     friend ObjectsLoader;
 

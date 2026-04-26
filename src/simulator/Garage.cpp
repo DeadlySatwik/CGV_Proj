@@ -6,6 +6,9 @@
 using namespace std;
 
 int Garage::vehiclesCounter = 0;
+const float Garage::GATE_SPEED = 120.0f;   // degrees per second (opens in ~0.75s)
+const float Garage::GATE_HOLD  = 2.5f;     // seconds the gate stays fully open
+
 
 Garage::Garage(Vec3 p, Cross *c) : Driveable(p, c)
 {
@@ -19,11 +22,24 @@ Garage::Garage(Vec3 p, Cross *c) : Driveable(p, c)
     isReadyToDelete = false;
 
     spottedVehicles = 0;
-    maxVehicles = 30;
+    maxVehicles = 15;
+
+    // Gate starts fully closed
+    gateState = GATE_CLOSED;
+    gateAngle = 0.0f;
+    gateTimer = 0.0f;
 }
+
 
 void Garage::draw()
 {
+    // Draw the garage's own driveway so the door doesn't look like it opens into the grass
+    // Driveable::draw() expects world coordinates, but Simulator::draw loop has already translated by pos
+    pushMatrix();
+    translate(-pos.x, -pos.y, -pos.z);
+    Driveable::draw();
+    popMatrix();
+
     // ========== Hash from garage ID for procedural variety ==========
     unsigned int hash = 5381;
     for (size_t i = 0; i < id.size(); i++)
@@ -75,18 +91,66 @@ void Garage::draw()
 
     pushMatrix();
     translate(0, halfH + CURB_H, 0);
-    rotateY(direction.angleXZ());
+    // The building's procedural front face is -X. 
+    // direction.angleXZ() aligns +Z with the road. 
+    // So we add 90 degrees to align -X with the road!
+    float angle = direction.angleXZ();
+    // Snap to nearest 90 degrees to ensure garages always face the road grid cleanly
+    // (This fixes the visual issue where diagonal direction vectors make the building twisted)
+    angle = round(angle / 90.0f) * 90.0f;
+    rotateY(angle + 90.0f);
 
-    // ========== MAIN BUILDING BODY ==========
+    // ========== MAIN BUILDING BODY (Hollowed out for garage) ==========
     setColor(wallColor);
-    drawCube(buildW, height, buildD);
+    float hw = buildW * 0.5f;
+    float hd = buildD * 0.5f;
+    
+    // Gate dimensions and hole setup
+    float gateW = buildD * 0.55f;
+    float gateH = 0.22f;
+    float sideWallW = (buildD - gateW) * 0.5f;
+
+    // Top roof
+    pushMatrix(); translate(0, halfH - 0.01f, 0); drawCube(buildW, 0.02f, buildD); popMatrix();
+    // Back wall (+X)
+    pushMatrix(); translate(hw - 0.01f, 0, 0); drawCube(0.02f, height, buildD); popMatrix();
+    // Left wall (+Z)
+    pushMatrix(); translate(0, 0, hd - 0.01f); drawCube(buildW, height, 0.02f); popMatrix();
+    // Right wall (-Z)
+    pushMatrix(); translate(0, 0, -hd + 0.01f); drawCube(buildW, height, 0.02f); popMatrix();
+    
+    // Front-top wall (above the gate)
+    pushMatrix(); translate(-hw + 0.01f, -halfH + gateH + (height - gateH)*0.5f, 0); drawCube(0.02f, height - gateH, buildD); popMatrix();
+    // Front-left wall (side of gate)
+    pushMatrix(); translate(-hw + 0.01f, -halfH + gateH * 0.5f, gateW * 0.5f + sideWallW * 0.5f); drawCube(0.02f, gateH, sideWallW); popMatrix();
+    // Front-right wall (side of gate)
+    pushMatrix(); translate(-hw + 0.01f, -halfH + gateH * 0.5f, -gateW * 0.5f - sideWallW * 0.5f); drawCube(0.02f, gateH, sideWallW); popMatrix();
+
+    // Floor of the garage interior
+    setColor(Vec3(0.2f, 0.2f, 0.2f)); // dark floor
+    pushMatrix(); translate(0, -halfH + 0.005f, 0); drawCube(buildW, 0.01f, buildD); popMatrix();
+
+    // Interior walls (dark)
+    setColor(Vec3(0.15f, 0.15f, 0.15f));
+    // Back interior
+    pushMatrix(); translate(hw - 0.03f, -halfH + gateH*0.5f, 0); drawCube(0.01f, gateH, buildD); popMatrix();
+    // Left interior
+    pushMatrix(); translate(0, -halfH + gateH*0.5f, hd - 0.03f); drawCube(buildW, gateH, 0.01f); popMatrix();
+    // Right interior
+    pushMatrix(); translate(0, -halfH + gateH*0.5f, -hd + 0.03f); drawCube(buildW, gateH, 0.01f); popMatrix();
 
     // ========== FOUNDATION / BASE STRIP ==========
     setColor(trimColor * 0.8f);
-    pushMatrix();
-    translate(0, -halfH + 0.015f, 0);
-    drawCube(buildW + 0.02f, 0.03f, buildD + 0.02f);
-    popMatrix();
+    // Back strip
+    pushMatrix(); translate(hw + 0.01f, -halfH + 0.015f, 0); drawCube(0.02f, 0.03f, buildD + 0.02f); popMatrix();
+    // Left strip
+    pushMatrix(); translate(0, -halfH + 0.015f, hd + 0.01f); drawCube(buildW + 0.02f, 0.03f, 0.02f); popMatrix();
+    // Right strip
+    pushMatrix(); translate(0, -halfH + 0.015f, -hd - 0.01f); drawCube(buildW + 0.02f, 0.03f, 0.02f); popMatrix();
+    // Front-left strip
+    pushMatrix(); translate(-hw - 0.01f, -halfH + 0.015f, gateW * 0.5f + sideWallW * 0.5f); drawCube(0.02f, 0.03f, sideWallW); popMatrix();
+    // Front-right strip
+    pushMatrix(); translate(-hw - 0.01f, -halfH + 0.015f, -gateW * 0.5f - sideWallW * 0.5f); drawCube(0.02f, 0.03f, sideWallW); popMatrix();
 
     // ========== CORNICE (top trim band) ==========
     setColor(trimColor);
@@ -147,61 +211,7 @@ void Garage::draw()
         pushMatrix(); translate(-buildW * 0.5f, halfH + 0.03f, 0); drawCube(pw, 0.06f, buildD); popMatrix();
     }
 
-    // ========== FRONT FACE: DOOR ==========
     float frontX = -(buildW * 0.5f + 0.005f);
-
-    if (doorStyle == 0)
-    {
-        // Single door
-        setColor(doorColor);
-        pushMatrix();
-        translate(frontX, -halfH + 0.12f, 0);
-        drawCube(0.01f, 0.24f, 0.14f);
-        popMatrix();
-        // Door frame
-        setColor(windowFrame);
-        pushMatrix();
-        translate(frontX, -halfH + 0.125f, 0);
-        drawCube(0.005f, 0.25f, 0.16f);
-        popMatrix();
-    }
-    else if (doorStyle == 1)
-    {
-        // Double door
-        setColor(doorColor);
-        pushMatrix();
-        translate(frontX, -halfH + 0.12f, -0.05f);
-        drawCube(0.01f, 0.24f, 0.09f);
-        popMatrix();
-        pushMatrix();
-        translate(frontX, -halfH + 0.12f, 0.05f);
-        drawCube(0.01f, 0.24f, 0.09f);
-        popMatrix();
-        // Divider strip
-        setColor(windowFrame);
-        pushMatrix();
-        translate(frontX, -halfH + 0.12f, 0);
-        drawCube(0.005f, 0.24f, 0.01f);
-        popMatrix();
-    }
-    else
-    {
-        // Shopfront — wide glass + awning
-        setColor(0.15f, 0.40f, 0.45f);
-        pushMatrix();
-        translate(frontX, -halfH + 0.10f, 0);
-        drawCube(0.008f, 0.20f, 0.50f);
-        popMatrix();
-        // Awning (colorful overhang)
-        Vec3 awningColor((hash % 200) / 400.0f + 0.3f,
-                         ((hash >> 4) % 200) / 400.0f + 0.2f,
-                         ((hash >> 8) % 200) / 400.0f + 0.15f);
-        setColor(awningColor);
-        pushMatrix();
-        translate(frontX - 0.06f, -halfH + 0.22f, 0);
-        drawCube(0.10f, 0.02f, 0.55f);
-        popMatrix();
-    }
 
     // ========== FRONT FACE: WINDOWS ==========
     int numFloors = (int)(height / 0.2f);
@@ -341,13 +351,99 @@ void Garage::draw()
 
     popMatrix();
 
+    // ========== GATE (animated roller door) ==========
+    // Gate is on the front face (frontX side in building-local coords),
+    // centered vertically. We draw it in world space (after the building popMatrix).
+    {
+        // Gate dimensions — slightly narrower than building front face (which spans buildD)
+        float gateW = buildD * 0.55f;   // width of opening
+        float gateH = 0.22f;            // full closed height
+        int numSlats = 5;
+        float slatH = gateH / numSlats;
+
+        // The gate hinge is at world ground level on the front face of the building.
+        // In building-local space, front face is at -buildW*0.5, door base at -halfH.
+        // We need to get that in world space. Use the object's own transform.
+        // Since Garage::draw() runs inside the object's pushMatrix context,
+        // we reproduce the same transform here.
+
+        // Colors
+        Vec3 gateColor(0.35f, 0.34f, 0.32f);    // dark steel
+        Vec3 gateHighlight(0.50f, 0.49f, 0.46f); // lighter slat edge
+        Vec3 gateFrame(0.25f, 0.24f, 0.22f);     // frame
+
+        pushMatrix();
+        translate(0, halfH + CURB_H, 0);
+        rotateY(direction.angleXZ() + 90.0f);
+
+        // --- Gate frame / surround ---
+        float frontFace = -(buildW * 0.5f + 0.006f);
+        float frameT = 0.012f;
+        setColor(gateFrame);
+        // Top bar of frame
+        pushMatrix();
+        translate(frontFace - frameT * 0.5f, -halfH + gateH + frameT * 0.5f, 0);
+        drawCube(frameT, frameT, gateW + frameT * 2);
+        popMatrix();
+        // Left post
+        pushMatrix();
+        translate(frontFace - frameT * 0.5f, -halfH + gateH * 0.5f, -(gateW * 0.5f + frameT * 0.5f));
+        drawCube(frameT, gateH, frameT);
+        popMatrix();
+        // Right post
+        pushMatrix();
+        translate(frontFace - frameT * 0.5f, -halfH + gateH * 0.5f, gateW * 0.5f + frameT * 0.5f);
+        drawCube(frameT, gateH, frameT);
+        popMatrix();
+
+        // --- Gate panel (pivots up from base hinge) ---
+        // Hinge pivot is at (frontFace, -halfH, 0) in building space
+        // Rotate around Z-axis in building space: 0 = hanging down (closed), -90 = flat overhead (open)
+        pushMatrix();
+        // Move to hinge point
+        translate(frontFace - 0.002f, -halfH, 0);
+        // Rotate the panel: 0 = vertical (closed), gateAngle degrees toward -X (opening overhead)
+        rotateZ(-gateAngle);
+        // Draw panel from hinge (y=0) upward
+        for (int s = 0; s < numSlats; s++)
+        {
+            float sy = slatH * s + slatH * 0.5f;  // center of each slat above hinge
+            // Alternate slight color for slat bands
+            if (s % 2 == 0) setColor(gateColor);
+            else             setColor(gateHighlight);
+            pushMatrix();
+            translate(0, sy, 0);
+            drawCube(0.008f, slatH - 0.003f, gateW - 0.005f);
+            popMatrix();
+        }
+        // Slat divider lines (very thin dark strips)
+        setColor(gateFrame);
+        for (int s = 1; s < numSlats; s++)
+        {
+            float sy = slatH * s;
+            pushMatrix();
+            translate(0, sy, 0);
+            drawCube(0.009f, 0.003f, gateW);
+            popMatrix();
+        }
+        // Bottom handle bar
+        setColor(gateFrame);
+        pushMatrix();
+        translate(0, gateH - 0.01f, 0);
+        drawCube(0.009f, 0.012f, gateW * 0.4f);
+        popMatrix();
+        popMatrix(); // end gate panel
+
+        popMatrix(); // end building transform
+    }
+
     translate(-pos);
     Driveable::draw();
 }
 
 void Garage::update(const float delta)
 {
-    // ===== Traffic density modulation by time of day (6G) =====
+    // ===== Traffic density modulation by time of day =====
     static float spawnMults[7] = { 0.15f, 0.5f, 2.0f, 1.0f, 1.2f, 2.0f, 0.6f };
     static float maxMults[7]   = { 0.20f, 0.4f, 1.5f, 1.0f, 1.1f, 1.5f, 0.5f };
 
@@ -375,7 +471,48 @@ void Garage::update(const float delta)
             isReadyToDelete = true;
         }
     }
+
+    // ===== Gate animation state machine =====
+    switch (gateState)
+    {
+        case GATE_OPENING:
+            gateAngle += GATE_SPEED * delta;
+            if (gateAngle >= 90.0f)
+            {
+                gateAngle = 90.0f;
+                gateState = GATE_OPEN;
+                gateTimer = 0.0f;
+            }
+            break;
+
+        case GATE_OPEN:
+            gateTimer += delta;
+            // Close only if no vehicle near the gate entrance
+            if (gateTimer > GATE_HOLD)
+            {
+                // Don't close if a vehicle is still near the exit (xPos < 0.3)
+                bool vehicleNearGate = (vehiclesBeg.size() > 0 && vehiclesBeg.back()->xPos < 0.3f)
+                                    || (vehiclesEnd.size() > 0 && vehiclesEnd.front()->xPos < 0.3f);
+                if (!vehicleNearGate)
+                    gateState = GATE_CLOSING;
+            }
+            break;
+
+        case GATE_CLOSING:
+            gateAngle -= GATE_SPEED * delta;
+            if (gateAngle <= 0.0f)
+            {
+                gateAngle = 0.0f;
+                gateState = GATE_CLOSED;
+            }
+            break;
+
+        case GATE_CLOSED:
+        default:
+            break;
+    }
 }
+
 
 string Garage::itos(const int x)
 {
@@ -388,6 +525,10 @@ Vehicle* Garage::spotVeh()
 {
     curTimeSpot = 0;
     isReadyToSpot = false;
+
+    // Open gate for outgoing vehicle
+    gateState = GATE_OPENING;
+    gateTimer = 0.0f;
 
     Vehicle *temp = createVehicle();
 
@@ -402,6 +543,7 @@ Vehicle* Garage::spotVeh()
 
     return temp;
 }
+
 
 Vehicle* Garage::deleteVeh()
 {
