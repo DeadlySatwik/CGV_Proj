@@ -34,9 +34,13 @@ private:
 
     // ---- Gate animation ----
     enum GateState { GATE_CLOSED, GATE_OPENING, GATE_OPEN, GATE_CLOSING };
-    GateState gateState;
-    float gateAngle;       // 0 = closed (vertical), 90 = fully open (horizontal)
-    float gateTimer;       // time gate stays fully open before closing
+    GateState gateStateOut;
+    float gateAngleOut;
+    float gateTimerOut;
+
+    GateState gateStateIn;
+    float gateAngleIn;
+    float gateTimerIn;
     static const float GATE_SPEED;    // degrees per second
     static const float GATE_HOLD;     // seconds gate stays open
 
@@ -65,6 +69,15 @@ class GarageBus : public Garage
 {
 public:
     GarageBus(Vec3 p, Cross *c);
+
+protected:
+    Vehicle *createVehicle();
+};
+
+class GarageBike : public Garage
+{
+public:
+    GarageBike(Vec3 p, Cross *c);
 
 protected:
     Vehicle *createVehicle();
