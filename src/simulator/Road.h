@@ -7,6 +7,7 @@
 #include "EngineCore/ExceptionClass.h"
 #include "GameObject.h"
 #include "Vehicle.h"
+#include "RLTrafficClient.h"
 #include <sstream>
 #include <algorithm>
 
@@ -101,7 +102,7 @@ protected:
         Driveable *street;
         std::vector<Vehicle*> vehicles;
         bool direction;
-        Vec3 getJointPos();
+        Vec3 getJointPos() const;
 
         std::vector<std::vector<int> > yield;
     };
@@ -149,12 +150,20 @@ private:
     void setDefaultPriority(Driveable *s0 = NULL, Driveable *s1 = NULL, Driveable *s2 = NULL, Driveable *s3 = NULL);
     void setDefaultLights(Driveable *s0, Driveable *s1, Driveable *s2, Driveable *s3);
     void setLightsPriority();
+    void applyAction(int action);
+    void collectState(int &north, int &south, int &east, int &west) const;
+    int classifyStreetCardinal(const OneStreet &street) const;
 
     float curTime;
+    float greenDuration;
+    float decisionInterval;
+    float decisionTimer;
+    float minGreenDuration;
+    float maxGreenDuration;
+    bool phaseNS;
+    bool useRL;
 
-    enum State{G1, Y1, B1, G2, Y2, B2};
-    State curState;
-    void getNextState();
+    RLTrafficClient rlClient;
 
     bool dontCheckStreet(const int which);
 

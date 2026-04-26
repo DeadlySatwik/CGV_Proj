@@ -23,6 +23,7 @@ SRCS+=src/simulator/EngineCore/ExceptionClass.cpp
 SRCS+=src/simulator/ObjectsLoader.cpp
 SRCS+=src/simulator/GameObject.cpp
 SRCS+=src/simulator/Simulator.cpp
+SRCS+=src/simulator/RLTrafficClient.cpp
 SRCS+=src/simulator/Road.cpp
 SRCS+=src/simulator/Vehicle.cpp 
 SRCS+=src/simulator/Garage.cpp
