@@ -1392,3 +1392,64 @@ void Street::draw()
         prop->drawObject();
     }
 }
+
+// ============================================================================
+// Rule Enforcement Accessors
+// ============================================================================
+
+int Cross::getStreetIndex(Driveable* street) const
+{
+    for (size_t i = 0; i < streets.size(); i++)
+    {
+        if (streets[i].street == street)
+            return (int)i;
+    }
+    return -1;
+}
+
+int Cross::getClosestStreetIndex(Vec3 pos) const
+{
+    int bestIdx = -1;
+    float minDist = 1e9f;
+    for (size_t i = 0; i < streets.size(); i++)
+    {
+        Vec3 joint = streets[i].getJointPos();
+        float dx = pos.x - joint.x;
+        float dz = pos.z - joint.z;
+        float dist = dx*dx + dz*dz;
+        if (dist < minDist)
+        {
+            minDist = dist;
+            bestIdx = (int)i;
+        }
+    }
+    return bestIdx;
+}
+
+bool Cross::doesYieldTo(int myStreetIdx, int targetStreetIdx) const
+{
+    if (myStreetIdx < 0 || myStreetIdx >= (int)streets.size()) return false;
+    if (targetStreetIdx < 0 || targetStreetIdx >= (int)streets.size()) return false;
+
+    // Is there a yield array defined?
+    if (streets[myStreetIdx].yield.empty()) return false;
+    
+    // Check if targetStreetIdx is in the yield list for myStreetIdx
+    for (int y : streets[myStreetIdx].yield[0])
+    {
+        if (y == targetStreetIdx) return true;
+    }
+    return false;
+}
+
+bool Cross::hasVehiclesApproaching(int streetIdx) const
+{
+    if (streetIdx < 0 || streetIdx >= (int)streets.size()) return false;
+    return !streets[streetIdx].vehicles.empty();
+}
+
+bool CrossLights::isGreenLight(int streetIdx) const
+{
+    if (streetIdx < 0 || streetIdx >= (int)curPriority.size()) return false;
+    return curPriority[streetIdx];
+}

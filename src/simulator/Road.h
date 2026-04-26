@@ -157,6 +157,13 @@ private:
     friend Driveable;
     friend Vehicle;
     friend ObjectsLoader;
+
+public:
+    // Rule Enforcement Accessors
+    int getStreetIndex(Driveable* street) const;
+    int getClosestStreetIndex(Vec3 pos) const;
+    bool doesYieldTo(int myStreetIdx, int targetStreetIdx) const;
+    bool hasVehiclesApproaching(int streetIdx) const;
 };
 
 class CrossLights : public Cross
@@ -164,6 +171,7 @@ class CrossLights : public Cross
 public:
     CrossLights(Vec3 position);
     void setLightsDurations();
+    bool isGreenLight(int streetIdx) const;
 
     struct LightsDuration
     {
