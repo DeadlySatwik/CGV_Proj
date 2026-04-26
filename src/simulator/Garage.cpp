@@ -22,10 +22,14 @@ Garage::Garage(Vec3 p, Cross *c) : Driveable(p, c)
     spottedVehicles = 0;
     maxVehicles = 15;
 
-    // Gate starts fully closed
-    gateState = GATE_CLOSED;
-    gateAngle = 0.0f;
-    gateTimer = 0.0f;
+    // Gates start fully closed
+    gateStateOut = GATE_CLOSED;
+    gateAngleOut = 0.0f;
+    gateTimerOut = 0.0f;
+
+    gateStateIn = GATE_CLOSED;
+    gateAngleIn = 0.0f;
+    gateTimerIn = 0.0f;
 }
 
 void Garage::draw()
@@ -98,7 +102,7 @@ void Garage::draw()
     // Snap to nearest 90 degrees to ensure garages always face the road grid cleanly
     // (This fixes the visual issue where diagonal direction vectors make the building twisted)
     angle = round(angle / 90.0f) * 90.0f;
-    rotateY(angle + 90.0f);
+    rotateY(angle + 180.0f);
 
     // ========== MAIN BUILDING BODY (Hollowed out for garage) ==========
     setColor(wallColor);
@@ -440,7 +444,7 @@ void Garage::draw()
 
         pushMatrix();
         translate(0, halfH + CURB_H, 0);
-        rotateY(direction.angleXZ() + 90.0f);
+        rotateY(angle + 180.0f);
 
         // --- Gate frame / surround ---
         float frontFace = -(buildW * 0.5f + 0.006f);
@@ -462,45 +466,71 @@ void Garage::draw()
         drawCube(frameT, gateH, frameT);
         popMatrix();
 
-        // --- Gate panel (pivots up from base hinge) ---
-        // Hinge pivot is at (frontFace, -halfH, 0) in building space
-        // Rotate around Z-axis in building space: 0 = hanging down (closed), -90 = flat overhead (open)
+        // Center post
         pushMatrix();
-        // Move to hinge point
+        translate(frontFace - frameT * 0.5f, -halfH + gateH * 0.5f, 0);
+        drawCube(frameT, gateH, frameT * 0.5f);
+        popMatrix();
+
+        float panelW = gateW * 0.5f - 0.01f;
+
+        // --- IN Gate panel (Left side, -Z) ---
+        pushMatrix();
         translate(frontFace - 0.002f, -halfH, 0);
-        // Rotate the panel: 0 = vertical (closed), gateAngle degrees toward -X (opening overhead)
-        rotateZ(-gateAngle);
-        // Draw panel from hinge (y=0) upward
+        rotateZ(-gateAngleIn);
         for (int s = 0; s < numSlats; s++)
         {
-            float sy = slatH * s + slatH * 0.5f; // center of each slat above hinge
-            // Alternate slight color for slat bands
-            if (s % 2 == 0)
-                setColor(gateColor);
-            else
-                setColor(gateHighlight);
+            float sy = slatH * s + slatH * 0.5f;
+            if (s % 2 == 0) setColor(gateColor); else setColor(gateHighlight);
             pushMatrix();
-            translate(0, sy, 0);
-            drawCube(0.008f, slatH - 0.003f, gateW - 0.005f);
+            translate(0, sy, -gateW * 0.25f);
+            drawCube(0.008f, slatH - 0.003f, panelW);
             popMatrix();
         }
-        // Slat divider lines (very thin dark strips)
         setColor(gateFrame);
         for (int s = 1; s < numSlats; s++)
         {
             float sy = slatH * s;
             pushMatrix();
-            translate(0, sy, 0);
-            drawCube(0.009f, 0.003f, gateW);
+            translate(0, sy, -gateW * 0.25f);
+            drawCube(0.009f, 0.003f, panelW + 0.005f);
             popMatrix();
         }
-        // Bottom handle bar
         setColor(gateFrame);
         pushMatrix();
-        translate(0, gateH - 0.01f, 0);
-        drawCube(0.009f, 0.012f, gateW * 0.4f);
+        translate(0, gateH - 0.01f, -gateW * 0.25f);
+        drawCube(0.009f, 0.012f, panelW * 0.8f);
         popMatrix();
-        popMatrix(); // end gate panel
+        popMatrix(); // end IN gate panel
+
+        // --- OUT Gate panel (Right side, +Z) ---
+        pushMatrix();
+        translate(frontFace - 0.002f, -halfH, 0);
+        rotateZ(-gateAngleOut);
+        for (int s = 0; s < numSlats; s++)
+        {
+            float sy = slatH * s + slatH * 0.5f;
+            if (s % 2 == 0) setColor(gateColor); else setColor(gateHighlight);
+            pushMatrix();
+            translate(0, sy, gateW * 0.25f);
+            drawCube(0.008f, slatH - 0.003f, panelW);
+            popMatrix();
+        }
+        setColor(gateFrame);
+        for (int s = 1; s < numSlats; s++)
+        {
+            float sy = slatH * s;
+            pushMatrix();
+            translate(0, sy, gateW * 0.25f);
+            drawCube(0.009f, 0.003f, panelW + 0.005f);
+            popMatrix();
+        }
+        setColor(gateFrame);
+        pushMatrix();
+        translate(0, gateH - 0.01f, gateW * 0.25f);
+        drawCube(0.009f, 0.012f, panelW * 0.8f);
+        popMatrix();
+        popMatrix(); // end OUT gate panel
 
         popMatrix(); // end building transform
     }
@@ -555,37 +585,79 @@ void Garage::update(const float delta)
         }
     }
 
-    // ===== Gate animation state machine =====
-    switch (gateState)
+    // ===== OUT Gate animation state machine =====
+    switch (gateStateOut)
     {
     case GATE_OPENING:
-        gateAngle += GATE_SPEED * delta;
-        if (gateAngle >= 90.0f)
+        gateAngleOut += GATE_SPEED * delta;
+        if (gateAngleOut >= 90.0f)
         {
-            gateAngle = 90.0f;
-            gateState = GATE_OPEN;
-            gateTimer = 0.0f;
+            gateAngleOut = 90.0f;
+            gateStateOut = GATE_OPEN;
+            gateTimerOut = 0.0f;
         }
         break;
 
     case GATE_OPEN:
-        gateTimer += delta;
-        // Close only if no vehicle near the gate entrance
-        if (gateTimer > GATE_HOLD)
+        gateTimerOut += delta;
+        if (gateTimerOut > GATE_HOLD)
         {
-            // Don't close if a vehicle is still near the exit (xPos < 0.3)
-            bool vehicleNearGate = (vehiclesBeg.size() > 0 && vehiclesBeg.back()->xPos < 0.3f) || (vehiclesEnd.size() > 0 && vehiclesEnd.front()->xPos < 0.3f);
+            bool vehicleNearGate = (vehiclesBeg.size() > 0 && vehiclesBeg.back()->xPos < 0.3f);
             if (!vehicleNearGate)
-                gateState = GATE_CLOSING;
+                gateStateOut = GATE_CLOSING;
         }
         break;
 
     case GATE_CLOSING:
-        gateAngle -= GATE_SPEED * delta;
-        if (gateAngle <= 0.0f)
+        gateAngleOut -= GATE_SPEED * delta;
+        if (gateAngleOut <= 0.0f)
         {
-            gateAngle = 0.0f;
-            gateState = GATE_CLOSED;
+            gateAngleOut = 0.0f;
+            gateStateOut = GATE_CLOSED;
+        }
+        break;
+
+    case GATE_CLOSED:
+    default:
+        break;
+    }
+
+    // ===== IN Gate animation state machine =====
+    if (vehiclesEnd.size() > 0 && gateStateIn == GATE_CLOSED) {
+        gateStateIn = GATE_OPENING;
+        gateTimerIn = 0.0f;
+    }
+
+    switch (gateStateIn)
+    {
+    case GATE_OPENING:
+        gateAngleIn += GATE_SPEED * delta;
+        if (gateAngleIn >= 90.0f)
+        {
+            gateAngleIn = 90.0f;
+            gateStateIn = GATE_OPEN;
+            gateTimerIn = 0.0f;
+        }
+        break;
+
+    case GATE_OPEN:
+        gateTimerIn += delta;
+        if (gateTimerIn > GATE_HOLD)
+        {
+            if (vehiclesEnd.size() == 0)
+                gateStateIn = GATE_CLOSING;
+        }
+        break;
+
+    case GATE_CLOSING:
+        gateAngleIn -= GATE_SPEED * delta;
+        if (gateAngleIn <= 0.0f)
+        {
+            gateAngleIn = 0.0f;
+            gateStateIn = GATE_CLOSED;
+        }
+        if (vehiclesEnd.size() > 0) {
+            gateStateIn = GATE_OPENING;
         }
         break;
 
@@ -607,9 +679,9 @@ Vehicle *Garage::spotVeh()
     curTimeSpot = 0;
     isReadyToSpot = false;
 
-    // Open gate for outgoing vehicle
-    gateState = GATE_OPENING;
-    gateTimer = 0.0f;
+    // Open OUT gate for outgoing vehicle
+    gateStateOut = GATE_OPENING;
+    gateTimerOut = 0.0f;
 
     Vehicle *temp = createVehicle();
 
@@ -679,5 +751,16 @@ Vehicle *GarageBus::createVehicle()
 {
     Vehicle *temp = new Bus(this);
     temp->id = "BUS_" + id + "_" + itos(Garage::vehiclesCounter);
+    return temp;
+}
+
+GarageBike::GarageBike(Vec3 p, Cross *c) : Garage(p, c)
+{
+}
+
+Vehicle *GarageBike::createVehicle()
+{
+    Vehicle *temp = new Bike(this);
+    temp->id = "BIKE_" + id + "_" + itos(Garage::vehiclesCounter);
     return temp;
 }

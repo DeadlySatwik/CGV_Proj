@@ -133,4 +133,14 @@ private:
     void draw();
 };
 
+class Bike : public Vehicle
+{
+public:
+    Bike(Driveable *spawnRoad);
+
+private:
+    void update(const float delta);
+    void draw();
+};
+
 #endif // VEHICLE_H

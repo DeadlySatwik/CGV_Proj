@@ -392,7 +392,7 @@ Simulator::Simulator() : maxNumberOfObjects(0), CAMERA_VELOCITY(3)
     orthoZoom = 30.0f;
 
     // Player car initialization
-    playerCar = new PlayerCar(Vec3(2.0f, 0.0f, 0.0f)); // middle of street HC4
+    playerCar = new PlayerCar(Vec3(6.0f, 0.0f, 0.0f)); // middle of street HC5
     thirdPersonMode = false;
     playerInputMap = 0;
     globalMaxVehicles = 50;
