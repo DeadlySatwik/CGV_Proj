@@ -2,6 +2,7 @@
 
 
 #include "Road.h"
+#include <cmath>
 using namespace std;
 
 class Simulator;
@@ -532,7 +533,7 @@ void Cross::setDefaultPriority(Driveable *s0, Driveable *s1, Driveable *s2, Driv
     }
 }
 
-Vec3 Cross::OneStreet::getJointPos()
+Vec3 Cross::OneStreet::getJointPos() const
 {
     return street->getJointPoint(direction);
 }
@@ -726,25 +727,13 @@ void CrossLights::setDefaultLights(Driveable *s0, Driveable *s1, Driveable *s2, 
 
 void CrossLights::setLightsPriority()
 {
-    if (curState == G1 || curState == Y1)
+    for(unsigned int i=0;i<streets.size();i++)
     {
-        for(unsigned int i=0;i<streets.size();i++)
+        if (phaseNS)
         {
             curPriority[i] = defaultPriority[i];
         }
-    }
-
-    if (curState == B1 || curState == B2)
-    {
-        for(unsigned int i=0;i<streets.size();i++)
-        {
-            curPriority[i] = false;
-        }
-    }
-
-    if (curState == G2 || curState == Y2)
-    {
-        for(unsigned int i=0;i<streets.size();i++)
+        else
         {
             curPriority[i] = !defaultPriority[i];
         }
@@ -755,66 +744,73 @@ CrossLights::CrossLights(Vec3 position) : Cross(position)
 {
     setLightsDurations();
 
-    curState = B1;
-    curTime = durLight.durationBreak;
+    phaseNS = true;
+    curTime = 0.0f;
+    decisionInterval = 0.25f;
+    decisionTimer = 0.0f;
+    minGreenDuration = 4.0f;
+    maxGreenDuration = 45.0f;
+    useRL = true;
     setLightsPriority();
 }
 
 void CrossLights::setLightsDurations()
 {
-    durLight.durationGreen1 = randFloat(10, 20);
-    durLight.durationYellow1 = randFloat(2, 6);
-    durLight.durationGreen2 = randFloat(10, 20);
-    durLight.durationYellow2 = randFloat(2, 6);
-    durLight.durationBreak = randFloat(1, 6);
+    greenDuration = randFloat(10, 20);
+    durLight.durationGreen1 = greenDuration;
+    durLight.durationGreen2 = greenDuration;
+    durLight.durationYellow1 = 0;
+    durLight.durationYellow2 = 0;
+    durLight.durationBreak = 0;
 }
 
-void CrossLights::getNextState()
+int CrossLights::classifyStreetCardinal(const OneStreet &street) const
 {
-    if (curTime <= 0)
+    Vec3 d = street.getJointPos() - pos;
+    if (fabs(d.x) > fabs(d.z))
     {
-        if (curState == G1)
-        {
-            curState = Y1;
-            curTime = durLight.durationYellow1;
-            setLightsPriority();
-            return;
-        }
-        if (curState == Y1)
-        {
-            curState = B1;
-            curTime = durLight.durationBreak;
-            setLightsPriority();
-            return;
-        }
-        if (curState == B1)
-        {
-            curState = G2;
-            curTime = durLight.durationGreen2;
-            setLightsPriority();
-            return;
-        }
-        if (curState == G2)
-        {
-            curState = Y2;
-            curTime = durLight.durationYellow2;
-            setLightsPriority();
-            return;
-        }
-        if (curState == Y2)
-        {
-            curState = B2;
-            curTime = durLight.durationBreak;
-            setLightsPriority();
-            return;
-        }
-        if (curState == B2)
-        {
-            curState = G1;
-            curTime = durLight.durationGreen1;
-            setLightsPriority();
-            return;
-        }
+        return d.x >= 0 ? 2 : 3; // east : west
+    }
+    return d.z >= 0 ? 0 : 1; // north : south
+}
+
+void CrossLights::collectState(int &north, int &south, int &east, int &west) const
+{
+    north = 0;
+    south = 0;
+    east = 0;
+    west = 0;
+
+    for (const auto &street : streets)
+    {
+        const int c = classifyStreetCardinal(street);
+        const int waiting = (int)street.vehicles.size();
+        if (c == 0) north += waiting;
+        else if (c == 1) south += waiting;
+        else if (c == 2) east += waiting;
+        else west += waiting;
+    }
+}
+
+void CrossLights::applyAction(int action)
+{
+    if (action == 1)
+    {
+        phaseNS = !phaseNS;
+        curTime = 0.0f;
+        setLightsPriority();
+    }
+    else if (action == 2)
+    {
+        greenDuration = min(maxGreenDuration, greenDuration + 1.0f);
+        durLight.durationGreen1 = greenDuration;
+        durLight.durationGreen2 = greenDuration;
+    }
+    else if (action == 3)
+    {
+        greenDuration = max(minGreenDuration, greenDuration - 1.0f);
+        durLight.durationGreen1 = greenDuration;
+        durLight.durationGreen2 = greenDuration;
     }
 }
 
@@ -822,43 +818,53 @@ void CrossLights::update(const float delta)
 {
     updateCross(delta);
 
-    curTime -= delta;
-    getNextState();
+    curTime += delta;
+    decisionTimer += delta;
+
+    if (decisionTimer >= decisionInterval)
+    {
+        decisionTimer = 0.0f;
+
+        int carsN, carsS, carsE, carsW;
+        collectState(carsN, carsS, carsE, carsW);
+
+        const float reward = -(float)(carsN + carsS + carsE + carsW);
+
+        int action = -1;
+        if (useRL)
+        {
+            action = rlClient.requestAction(carsN,
+                                            carsS,
+                                            carsE,
+                                            carsW,
+                                            phaseNS ? 0 : 1,
+                                            greenDuration,
+                                            reward);
+        }
+
+        // If RL server is unavailable, preserve deterministic behavior.
+        if (action >= 0 && action <= 3)
+        {
+            applyAction(action);
+        }
+        else if (curTime >= greenDuration)
+        {
+            applyAction(1);
+        }
+    }
+
+    if (curTime >= greenDuration)
+    {
+        applyAction(1);
+    }
 }
 
 void CrossLights::draw()
 {
     Cross::draw();
 
-    Vec3 color1;
-    Vec3 color2;
-
-    if (curState == G1)
-    {
-        color1 = Vec3(0,1,0);
-        color2 = Vec3(1,0,0);
-    }
-    if (curState == G2)
-    {
-        color1 = Vec3(1,0,0);
-        color2 = Vec3(0,1,0);
-    }
-    if (curState == Y1)
-    {
-        color1 = Vec3(1,1,0);
-        color2 = Vec3(1,0,0);
-    }
-
-    if (curState == Y2)
-    {
-        color1 = Vec3(1,0,0);
-        color2 = Vec3(1,1,0);
-    }
-    if (curState == B1 || curState == B2 )
-    {
-        color1 = Vec3(1,0,0);
-        color2 = Vec3(1,0,0);
-    }
+    Vec3 color1 = phaseNS ? Vec3(0,1,0) : Vec3(1,0,0);
+    Vec3 color2 = phaseNS ? Vec3(1,0,0) : Vec3(0,1,0);
 
     translate(-pos);
 
