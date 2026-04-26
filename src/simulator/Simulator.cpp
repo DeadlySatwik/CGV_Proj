@@ -266,21 +266,46 @@ void Simulator::redraw()
     // Update projection each frame (handles toggle)
     setupProjection();
 
-    // Build lookAt view matrix manually (column-major for OpenGL)
-    updateCameraVectors();
+    Vec3 eyePos, eyeFront, eyeUp, eyeRight;
 
-    // eye = cameraPos, center = cameraPos + front, up = cameraUp
-    // Build rotation part from right/up/forward basis
-    Vec3 f = cameraFront;
-    Vec3 r = cameraRight;
-    Vec3 u = cameraUp;
+    if (thirdPersonMode && playerCar)
+    {
+        // 3rd person chase camera
+        eyePos = playerCar->getCameraPos();
+
+        // Compute front from eye to target
+        Vec3 target = playerCar->getCameraTarget();
+        eyeFront = target - eyePos;
+        eyeFront.normalize();
+
+        // Compute right and up
+        Vec3 worldUp(0, 1, 0);
+        eyeRight = Vec3::cross(eyeFront, worldUp);
+        eyeRight.normalize();
+        eyeUp = Vec3::cross(eyeRight, eyeFront);
+        eyeUp.normalize();
+    }
+    else
+    {
+        // Free-fly camera (existing)
+        updateCameraVectors();
+        eyePos = cameraPos;
+        eyeFront = cameraFront;
+        eyeRight = cameraRight;
+        eyeUp = cameraUp;
+    }
+
+    // Build lookAt view matrix manually (column-major for OpenGL)
+    Vec3 f = eyeFront;
+    Vec3 r = eyeRight;
+    Vec3 u = eyeUp;
 
     // View matrix = rotation * translation
     // OpenGL column-major: m[col*4 + row]
     float view[16];
-    view[0] = r.x;   view[4] = r.y;   view[8]  = r.z;   view[12] = -(r.x*cameraPos.x + r.y*cameraPos.y + r.z*cameraPos.z);
-    view[1] = u.x;   view[5] = u.y;   view[9]  = u.z;   view[13] = -(u.x*cameraPos.x + u.y*cameraPos.y + u.z*cameraPos.z);
-    view[2] = -f.x;  view[6] = -f.y;  view[10] = -f.z;  view[14] =  (f.x*cameraPos.x + f.y*cameraPos.y + f.z*cameraPos.z);
+    view[0] = r.x;   view[4] = r.y;   view[8]  = r.z;   view[12] = -(r.x*eyePos.x + r.y*eyePos.y + r.z*eyePos.z);
+    view[1] = u.x;   view[5] = u.y;   view[9]  = u.z;   view[13] = -(u.x*eyePos.x + u.y*eyePos.y + u.z*eyePos.z);
+    view[2] = -f.x;  view[6] = -f.y;  view[10] = -f.z;  view[14] =  (f.x*eyePos.x + f.y*eyePos.y + f.z*eyePos.z);
     view[3] = 0;     view[7] = 0;     view[11] = 0;     view[15] = 1;
 
     glLoadIdentity();
@@ -323,6 +348,12 @@ void Simulator::redraw()
         object->drawObject();
     }
 
+    // Draw the player car
+    if (playerCar)
+    {
+        playerCar->drawObject();
+    }
+
     popMatrix();
 }
 
@@ -341,6 +372,12 @@ Simulator::Simulator() : maxNumberOfObjects(0), CAMERA_VELOCITY(3)
     projectionOrtho = false;
     orthoZoom = 30.0f;
 
+    // Player car initialization
+    playerCar = new PlayerCar(Vec3(2.0f, 0.0f, 0.0f));  // middle of street HC4
+    thirdPersonMode = false;
+    playerInputMap = 0;
+    globalMaxVehicles = 50;
+
     // Day/Night initialization — start at 10:00 (morning)
     worldTime = 10.0f;
     timeSpeed = 2.0f;    // 2 sim-minutes per real-second → full day in 12 real minutes
@@ -355,6 +392,24 @@ Simulator::Simulator() : maxNumberOfObjects(0), CAMERA_VELOCITY(3)
 
 void Simulator::keyHeld(char k)
 {
+    // In 3rd person mode, arrow keys / IJKL drive the player car
+    if (thirdPersonMode)
+    {
+        // Arrow keys come as VK codes (Windows): Up=38, Down=40, Left=37, Right=39
+        switch (k)
+        {
+            case 38: // VK_UP
+            case 'i': playerInputMap |= PlayerCar::INPUT_ACCEL;       break;
+            case 40: // VK_DOWN
+            case 'k': playerInputMap |= PlayerCar::INPUT_BRAKE;       break;
+            case 37: // VK_LEFT
+            case 'j': playerInputMap |= PlayerCar::INPUT_STEER_LEFT;  break;
+            case 39: // VK_RIGHT
+            case 'l': playerInputMap |= PlayerCar::INPUT_STEER_RIGHT; break;
+        }
+        return;  // Don't move free camera while driving
+    }
+
     if (k >= 'A' && k <= 'Z')
     {
         k += 32;
@@ -399,6 +454,10 @@ void Simulator::keyPressed(char k)
             projectionOrtho = !projectionOrtho;
             cout << "Projection: " << (projectionOrtho ? "Orthographic" : "Perspective") << endl;
             break;
+        case 'f':
+            thirdPersonMode = !thirdPersonMode;
+            cout << "Camera: " << (thirdPersonMode ? "3rd Person (Arrow keys to drive)" : "Free Fly (WASD to move)") << endl;
+            break;
 
         // --- Day/Night controls ---
         case 'n':
@@ -418,16 +477,6 @@ void Simulator::keyPressed(char k)
             timeFlowing = !timeFlowing;
             cout << "Time flow: " << (timeFlowing ? "ON" : "PAUSED") << endl;
             break;
-        case 'i':
-        {
-            int h = (int)worldTime;
-            int m = (int)((worldTime - h) * 60);
-            cout << "[" << (h < 10 ? "0" : "") << h << ":" << (m < 10 ? "0" : "") << m << "] "
-                 << phaseNames[dayPhase]
-                 << " | Vehicles: " << objects.size() - maxNumberOfObjects + spots.size()
-                 << " | Objects: " << objects.size() << endl;
-            break;
-        }
     }
 
     updatesPerFrame = max(MIN_UPDATES_PER_FRAME, min(updatesPerFrame, MAX_UPDATES_PER_FRAME));
@@ -481,21 +530,42 @@ void Simulator::mouseMove(const int dx, const int dy)
 
 void Simulator::singleUpdate(const float delta)
 {
-    cameraMove(delta);
+    // Save position before move (for road constraint)
+    playerCar->setOldPosition();
+
+    // Update player car input
+    playerCar->handleInput(playerInputMap, delta);
+    playerInputMap = 0;
+
+    // Road constraint: revert if new position is off-road
+    if (!isOnRoad(playerCar->getPos()))
+    {
+        playerCar->revertPosition();
+    }
+
+    if (!thirdPersonMode)
+    {
+        cameraMove(delta);
+    }
+
     updateWorldTime(delta);   // advance world clock
 }
 
 void Simulator::update(const float delta)
 {
+    int activeVehicles = getActiveVehicleCount();
+
     for (auto &spot : spots)
     {
-        if (spot->checkReadyToSpot())
+        if (spot->checkReadyToSpot() && activeVehicles < globalMaxVehicles)
         {
             registerObject(spot->spotVeh());
+            activeVehicles++;
         }
         if (spot->checkReadyToDelete())
         {
             destroyObject(spot->deleteVeh());
+            activeVehicles--;
         }
     }
 
@@ -503,6 +573,20 @@ void Simulator::update(const float delta)
     {
         object->updateObject(delta);
     }
+}
+
+int Simulator::getActiveVehicleCount() const
+{
+    // objects includes roads, crosses, garages, environment + vehicles
+    // maxNumberOfObjects = count of non-vehicle objects (roads, crosses, etc.) + garage maxVehicles
+    // A simpler approach: count objects that exceed the static object count
+    int staticObjects = 0;
+    for (const auto &spot : spots)
+    {
+        staticObjects += spot->maxVehicles;
+    }
+    int baseObjects = maxNumberOfObjects - staticObjects;
+    return (int)objects.size() - baseObjects;
 }
 
 void Simulator::registerObject(GameObject *go)
@@ -543,4 +627,71 @@ void Simulator::loadedNewFactory(Garage *newFactory)
 {
     spots.push_back(newFactory);
     maxNumberOfObjects += newFactory->maxVehicles;
+}
+
+bool Simulator::isOnRoad(Vec3 testPos) const
+{
+    // Check if testPos is within any road segment or intersection.
+    // Road half-width = 0.3 (visual), we use 0.4 for a little tolerance so they don't clip curbs.
+    const float roadHW = 0.4f;
+    // Intersection half-size = 0.3. We use 0.6 here to give a very generous bounding box
+    // at intersections, allowing the player to make smooth, curved turns instead of
+    // being forced into a square path by invisible walls.
+    const float crossHalf = 0.6f;
+
+    for (const auto &obj : objects)
+    {
+        // Check if it's a Driveable (Street or Garage)
+        Driveable *road = dynamic_cast<Driveable*>(obj);
+        if (road)
+        {
+            // Project testPos onto the road's line segment (begPos -> endPos)
+            Vec3 roadDir = road->getDirection();
+            Vec3 roadNorm = road->getNormal();
+
+            // Get road endpoints (use the raw begPos/endPos via getJointPoint
+            // but those are inset by 0.3; we need the full road extent)
+            // Actually, begPos and endPos are the cross center positions.
+            // The road surface goes from begPos to endPos.
+            Vec3 begP = road->getJointPoint(true);   // begJoint
+            Vec3 endP = road->getJointPoint(false);   // endJoint
+
+            // Use begPos/endPos for the full road — but those are private.
+            // Use joints as approximation (they're inset by ~0.3 from cross center).
+            // The actual road surface extends slightly beyond joints toward crosses,
+            // so add some margin along the road direction.
+            float roadLen = road->getLength();
+
+            // Vector from begJoint to testPos
+            Vec3 diff = testPos - begP;
+            // Project along road direction (dot product via components)
+            float along = diff.x * roadDir.x + diff.z * roadDir.z;
+            // Project along road normal (perpendicular distance)
+            float across = diff.x * roadNorm.x + diff.z * roadNorm.z;
+
+            // Check if within road bounds
+            // Along: from -0.3 (margin toward beg cross) to roadLen + 0.3
+            // Across: within +/- roadHW
+            if (along >= -0.5f && along <= roadLen + 0.5f &&
+                fabs(across) <= roadHW)
+            {
+                return true;
+            }
+        }
+
+        // Check if it's a Cross (intersection)
+        Cross *cross = dynamic_cast<Cross*>(obj);
+        if (cross && !road)  // Crosses that aren't also Driveables
+        {
+            Vec3 crossPos = cross->getPos();
+            float dx = fabs(testPos.x - crossPos.x);
+            float dz = fabs(testPos.z - crossPos.z);
+            if (dx <= crossHalf && dz <= crossHalf)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }

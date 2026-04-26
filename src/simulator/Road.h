@@ -82,9 +82,11 @@ class Street : public Driveable
 {
 public:
     Street(Cross *begCross, Cross *endCross);
+    virtual ~Street();
 
 private:
     void draw();
+    std::vector<GameObject*> sidewalkProps;
 };
 
 class Cross : public Road

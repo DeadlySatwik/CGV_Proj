@@ -3,12 +3,17 @@ CXX=g++
 RM=rm -f
 CPPFLAGS= -std=c++11 
 LDFLAGS=
-LDLIBS= -lm -lGL -lX11
+LDLIBS= -lm
 
-UNAME_S := $(shell uname -s)
-ifeq ($(UNAME_S),Darwin)
-	LDLIBS+= -L/opt/X11/lib
-	CPPFLAGS+= -I /opt/X11/include/
+ifeq ($(OS),Windows_NT)
+	LDLIBS+= -lopengl32 -lgdi32 -luser32
+else
+	LDLIBS+= -lGL -lX11
+	UNAME_S := $(shell uname -s)
+	ifeq ($(UNAME_S),Darwin)
+		LDLIBS+= -L/opt/X11/lib
+		CPPFLAGS+= -I /opt/X11/include/
+	endif
 endif
 
 SRCS=src/main.cpp
@@ -27,6 +32,7 @@ SRCS+=src/simulator/Road.cpp
 SRCS+=src/simulator/Vehicle.cpp 
 SRCS+=src/simulator/Garage.cpp
 SRCS+=src/simulator/Environment.cpp
+SRCS+=src/simulator/PlayerCar.cpp
 
 OBJS=$(subst .cpp,.o,$(SRCS))
 

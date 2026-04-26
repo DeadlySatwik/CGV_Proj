@@ -11,8 +11,11 @@ int main(int argc, char** argv)
     cout << "      Copyright (C) DeadlyS 2026" << endl;
     cout << endl << endl;
     cout << "   Steering: " << endl << endl;
-    cout << " W,A,S,D       - movement" << endl;
+    cout << " W,A,S,D       - camera movement" << endl;
     cout << " Q, E          - vertical movement" << endl;
+    cout << endl;
+    cout << " F             - toggle 3rd person car view" << endl;
+    cout << " Arrow Keys    - drive car (in 3rd person mode)" << endl;
     cout << endl;
     cout << " T, Y          - decrease/increase updates per frame" << endl;
     cout << " G, H          - decrease/increase time scale" << endl;
