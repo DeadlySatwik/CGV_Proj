@@ -392,7 +392,12 @@ Simulator::Simulator() : maxNumberOfObjects(0), CAMERA_VELOCITY(3)
     orthoZoom = 30.0f;
 
     // Player car initialization
-    playerCar = new PlayerCar(Vec3(6.0f, 0.0f, 0.0f)); // middle of street HC5
+    playerVehicles.push_back(new PlayerCar(Vec3(6.0f, 0.0f, 0.0f)));
+    playerVehicles.push_back(new PlayerBus(Vec3(6.0f, 0.0f, 0.0f)));
+    playerVehicles.push_back(new PlayerBike(Vec3(6.0f, 0.0f, 0.0f)));
+    currentVehicleIdx = 0;
+    activePlayerVeh = playerVehicles[currentVehicleIdx];
+    
     thirdPersonMode = false;
     playerInputMap = 0;
     globalMaxVehicles = 50;
@@ -544,10 +549,10 @@ void Simulator::keyPressed(char k)
             activePlayerVeh = playerVehicles[currentVehicleIdx];
             
             // Transfer state
-            activePlayerVeh->pos = oldVeh->pos;
+            activePlayerVeh->setPos(oldVeh->getPos());
             activePlayerVeh->speed = oldVeh->speed;
             activePlayerVeh->heading = oldVeh->heading;
-            activePlayerVeh->rot = oldVeh->rot;
+            activePlayerVeh->setRot(oldVeh->getRot());
             activePlayerVeh->setOldPosition();
             
             cout << "Switched to vehicle " << (newIdx == 0 ? "Car" : (newIdx == 1 ? "Bus" : "Bike")) << endl;
@@ -828,7 +833,7 @@ bool Simulator::isPlayerBlocked(const Vec3 &testPos) const
 
     for (const auto &obj : objects)
     {
-        if (obj == playerCar)
+        if (obj == activePlayerVeh)
             continue;
 
         Vec3 op = obj->getPos();

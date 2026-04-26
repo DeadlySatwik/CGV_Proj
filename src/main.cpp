@@ -15,7 +15,11 @@ int main(int argc, char** argv)
     cout << " Q, E          - vertical movement" << endl;
     cout << endl;
     cout << " F             - toggle 3rd person car view" << endl;
-    cout << " Arrow Keys    - drive car (in 3rd person mode)" << endl;
+    cout << " 1 - Switches to the Car" << endl;
+    cout << " 2 - Switches to the Bus" << endl;
+    cout << " 3 - Switches to the Bike" << endl;
+
+    cout << " Arrow Keys    - drive (in 3rd person mode)" << endl;
     cout << endl;
     cout << " T, Y          - decrease/increase updates per frame" << endl;
     cout << " G, H          - decrease/increase time scale" << endl;
