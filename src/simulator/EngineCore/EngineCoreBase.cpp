@@ -65,7 +65,7 @@ void EngineCoreBase::drawFrame()
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glClearColor(0.52f, 0.72f, 0.88f, 1.0f);
+    // glClearColor is now set dynamically in Simulator::updateSkyAndLighting()
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glTranslatef(0.0f, 0.0f, 5.0f);
 
@@ -77,27 +77,21 @@ void EngineCoreBase::drawFrame()
 
 void EngineCoreBase::initLight()
 {
-    // Improved directional sunlight — warm white from steep upper angle
-    // w=0 means directional (parallel rays like the sun)
-    const GLfloat lambient[]    = { 0.25f, 0.25f, 0.30f, 1.0f };  // slight blue sky bounce
-    const GLfloat ldiffuse[]    = { 1.0f, 0.95f, 0.85f, 1.0f };   // warm sunlight
-    const GLfloat lspecular[]   = { 0.3f, 0.3f, 0.3f, 1.0f };     // subtle specular
-    const GLfloat lposition[]   = { 0.4f, 1.0f, 0.3f, 0.0f };     // direction toward light
+    // One-time GL setup — ambient/diffuse/position are now set
+    // dynamically per-frame in Simulator::updateSkyAndLighting()
+    const GLfloat lspecular[]   = { 0.3f, 0.3f, 0.3f, 1.0f };
 
     const GLfloat mambient[]    = { 0.7f, 0.7f, 0.7f, 1.0f };
-    const GLfloat mdiffuse[]    = { 0.9f, 0.9f, 0.9f, 1.0f };     // stronger diffuse response
+    const GLfloat mdiffuse[]    = { 0.9f, 0.9f, 0.9f, 1.0f };
     const GLfloat mspecular[]   = { 0.1f, 0.1f, 0.1f, 1.0f };
-    const GLfloat shininess[]   = { 20.0f };                        // broad specular highlight
+    const GLfloat shininess[]   = { 20.0f };
 
     glEnable(GL_LIGHT0);
     glEnable(GL_NORMALIZE);
     glEnable(GL_COLOR_MATERIAL);
     glEnable(GL_LIGHTING);
 
-    glLightfv(GL_LIGHT0, GL_AMBIENT,  lambient);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE,  ldiffuse);
     glLightfv(GL_LIGHT0, GL_SPECULAR, lspecular);
-    glLightfv(GL_LIGHT0, GL_POSITION, lposition);
 
     glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,   mambient);
     glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,   mdiffuse);

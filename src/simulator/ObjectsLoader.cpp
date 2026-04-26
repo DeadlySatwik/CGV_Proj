@@ -140,6 +140,33 @@ void ObjectsLoader::loadRoad(const string fileName)
                     loadedNewObject(temp);
                     crosses.push_back(temp);
                 }
+                else if (type.compare("TR") == 0 || type.compare("TREE") == 0)
+                {
+                    float x, y, z;
+                    ss >> x >> y >> z;
+                    if (ss.fail()) throw ExceptionClass("failed to load position of tree " + id);
+                    GameObject *temp = new Tree(Vec3(x, y, z));
+                    temp->id = id;
+                    loadedNewObject(temp);
+                }
+                else if (type.compare("LP") == 0 || type.compare("LAMPPOST") == 0)
+                {
+                    float x, y, z;
+                    ss >> x >> y >> z;
+                    if (ss.fail()) throw ExceptionClass("failed to load position of lamppost " + id);
+                    GameObject *temp = new Lamppost(Vec3(x, y, z));
+                    temp->id = id;
+                    loadedNewObject(temp);
+                }
+                else if (type.compare("BN") == 0 || type.compare("BENCH") == 0)
+                {
+                    float x, y, z;
+                    ss >> x >> y >> z;
+                    if (ss.fail()) throw ExceptionClass("failed to load position of bench " + id);
+                    GameObject *temp = new Bench(Vec3(x, y, z));
+                    temp->id = id;
+                    loadedNewObject(temp);
+                }
                 else
                 {
                     throw ExceptionClass("could not find type " + type);

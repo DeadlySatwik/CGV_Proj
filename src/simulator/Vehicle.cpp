@@ -3,6 +3,7 @@
 
 #include "Vehicle.h"
 #include "Road.h"
+#include "Simulator.h"
 
 class Driveable;
 
@@ -469,108 +470,195 @@ void Car::draw()
 {
     translate(0, -0.02, 0);
 
-    // Blinkers (existing logic preserved)
+    // ========== BLINKERS (preserved logic) ==========
     if (blinker.which < 0 && blinker.isLighting)
     {
         pushMatrix();
-        translate(0,0.05,-0.045);
+        translate(0, 0.055, -0.052);
         setColor(blinkerColor);
-        drawCube(0.22,0.02,0.01);
+        drawCube(0.22, 0.02, 0.008);
         popMatrix();
     }
     if (blinker.which > 0 && blinker.isLighting)
     {
         pushMatrix();
-        translate(0,0.05,0.045);
+        translate(0, 0.055, 0.052);
         setColor(blinkerColor);
-        drawCube(0.22,0.02,0.01);
+        drawCube(0.22, 0.02, 0.008);
         popMatrix();
     }
 
-    // Brake lights
+    // ========== BRAKE LIGHT GLOW ==========
     if (isBraking)
     {
-        setColor(1,0,0);
-        pushMatrix();
-        translate(-0.05,0.08,0);
-        drawCube(0.07,0.003,0.04);
-        popMatrix();
-
-        pushMatrix();
-        translate(-0.05,0.05,0.04);
-        drawCube(0.12,0.01,0.01);
-        popMatrix();
-
-        pushMatrix();
-        translate(-0.05,0.05,-0.04);
-        drawCube(0.12,0.01,0.01);
-        popMatrix();
+        setColor(1, 0, 0);
+        pushMatrix(); translate(-0.05, 0.085, 0); drawCube(0.07, 0.003, 0.04); popMatrix();
+        pushMatrix(); translate(-0.05, 0.055, 0.042); drawCube(0.12, 0.008, 0.008); popMatrix();
+        pushMatrix(); translate(-0.05, 0.055, -0.042); drawCube(0.12, 0.008, 0.008); popMatrix();
     }
 
-    // --- Wheels (4 dark cylinders approximated as small cubes) ---
-    setColor(0.15f, 0.15f, 0.15f);
-    // Front-left
-    pushMatrix(); translate(0.06, 0.015, 0.05); drawCube(0.03, 0.03, 0.015); popMatrix();
-    // Front-right
-    pushMatrix(); translate(0.06, 0.015, -0.05); drawCube(0.03, 0.03, 0.015); popMatrix();
-    // Rear-left
-    pushMatrix(); translate(-0.06, 0.015, 0.05); drawCube(0.03, 0.03, 0.015); popMatrix();
-    // Rear-right
-    pushMatrix(); translate(-0.06, 0.015, -0.05); drawCube(0.03, 0.03, 0.015); popMatrix();
+    // ========== WHEELS WITH RIMS ==========
+    for (int lr = -1; lr <= 1; lr += 2)  // left/right
+    {
+        for (int fb = -1; fb <= 1; fb += 2)  // front/back
+        {
+            float wx = fb * 0.065f;
+            float wz = lr * 0.052f;
+            // Tire (dark rubber)
+            setColor(0.10f, 0.10f, 0.10f);
+            pushMatrix(); translate(wx, 0.016f, wz); drawCube(0.032f, 0.032f, 0.016f); popMatrix();
+            // Rim (silver hub)
+            setColor(0.65f, 0.65f, 0.68f);
+            pushMatrix(); translate(wx, 0.016f, wz + lr * 0.009f); drawCube(0.018f, 0.018f, 0.003f); popMatrix();
+        }
+    }
 
-    // --- Main body (taller than original) ---
+    // ========== UNDERCARRIAGE (dark shadow strip) ==========
+    setColor(0.08f, 0.08f, 0.08f);
+    pushMatrix(); translate(0, 0.008f, 0); drawCube(0.18f, 0.008f, 0.08f); popMatrix();
+
+    // ========== MAIN BODY ==========
     setColor(color);
     pushMatrix();
-    translate(0, 0.055, 0);
-    drawCube(0.20, 0.07, 0.10);
+    translate(0, 0.05f, 0);
 
-    // --- Roof / cabin ---
-    drawRoof();
+    // Lower body (wider, main chassis)
+    drawCube(0.21f, 0.05f, 0.105f);
+
+    // ---- Hood (front, slightly lower — slopes down) ----
+    setColor(color);
+    pushMatrix();
+    translate(0.07f, 0.015f, 0);
+    drawCube(0.06f, 0.02f, 0.10f);
     popMatrix();
 
-    // --- Headlights (front, white) ---
-    setColor(0.95f, 0.95f, 0.8f);
-    pushMatrix(); translate(0.10, 0.05, 0.035); drawCube(0.01, 0.015, 0.02); popMatrix();
-    pushMatrix(); translate(0.10, 0.05, -0.035); drawCube(0.01, 0.015, 0.02); popMatrix();
+    // ---- Trunk (rear, slightly lower) ----
+    pushMatrix();
+    translate(-0.07f, 0.012f, 0);
+    drawCube(0.06f, 0.018f, 0.10f);
+    popMatrix();
 
-    // --- Taillights (rear, dark red) ---
-    setColor(0.6f, 0.0f, 0.0f);
-    pushMatrix(); translate(-0.10, 0.05, 0.035); drawCube(0.01, 0.015, 0.02); popMatrix();
-    pushMatrix(); translate(-0.10, 0.05, -0.035); drawCube(0.01, 0.015, 0.02); popMatrix();
+    // ---- Side skirts (thin dark strips along bottom edge) ----
+    setColor(color * 0.5f);
+    pushMatrix(); translate(0, -0.022f, 0.053f); drawCube(0.19f, 0.006f, 0.004f); popMatrix();
+    pushMatrix(); translate(0, -0.022f, -0.053f); drawCube(0.19f, 0.006f, 0.004f); popMatrix();
 
-    // --- Bumpers (front and rear, darker shade) ---
-    setColor(color * 0.6f);
-    pushMatrix(); translate(0.105, 0.035, 0); drawCube(0.01, 0.025, 0.09); popMatrix();
-    pushMatrix(); translate(-0.105, 0.035, 0); drawCube(0.01, 0.025, 0.09); popMatrix();
+    // ========== CABIN / ROOF ==========
+    drawRoof();
+
+    popMatrix();
+
+    // ========== FRONT GRILLE ==========
+    setColor(0.18f, 0.18f, 0.20f);
+    pushMatrix(); translate(0.107f, 0.042f, 0); drawCube(0.004f, 0.025f, 0.06f); popMatrix();
+    // Chrome grille accent
+    setColor(0.70f, 0.70f, 0.72f);
+    pushMatrix(); translate(0.108f, 0.048f, 0); drawCube(0.002f, 0.008f, 0.055f); popMatrix();
+    pushMatrix(); translate(0.108f, 0.038f, 0); drawCube(0.002f, 0.008f, 0.055f); popMatrix();
+
+    // ========== HEADLIGHTS (day-phase aware) ==========
+    int carPhase = Simulator::getInstance().getDayPhase();
+    bool nightDriving = (carPhase == 0 || carPhase == 1 || carPhase == 5 || carPhase == 6);
+
+    // Housing
+    setColor(0.80f, 0.80f, 0.82f);
+    pushMatrix(); translate(0.107f, 0.05f, 0.038f); drawCube(0.006f, 0.018f, 0.022f); popMatrix();
+    pushMatrix(); translate(0.107f, 0.05f, -0.038f); drawCube(0.006f, 0.018f, 0.022f); popMatrix();
+    // Lens
+    if (nightDriving) setColor(1.0f, 0.98f, 0.85f);  // bright ON
+    else setColor(0.95f, 0.93f, 0.80f);               // dim OFF
+    pushMatrix(); translate(0.109f, 0.05f, 0.038f); drawCube(0.003f, 0.014f, 0.018f); popMatrix();
+    pushMatrix(); translate(0.109f, 0.05f, -0.038f); drawCube(0.003f, 0.014f, 0.018f); popMatrix();
+
+    // Headlight beam (only at night — subtle forward projection)
+    if (nightDriving)
+    {
+        setColor(0.90f, 0.85f, 0.60f);
+        pushMatrix(); translate(0.14f, 0.045f, 0.038f); drawCube(0.05f, 0.008f, 0.015f); popMatrix();
+        pushMatrix(); translate(0.14f, 0.045f, -0.038f); drawCube(0.05f, 0.008f, 0.015f); popMatrix();
+    }
+
+    // ========== FOG LIGHTS ==========
+    if (nightDriving) setColor(0.95f, 0.90f, 0.70f);
+    else setColor(0.90f, 0.88f, 0.75f);
+    pushMatrix(); translate(0.108f, 0.032f, 0.035f); drawCube(0.003f, 0.006f, 0.008f); popMatrix();
+    pushMatrix(); translate(0.108f, 0.032f, -0.035f); drawCube(0.003f, 0.006f, 0.008f); popMatrix();
+
+    // ========== TAILLIGHTS (brighter at night) ==========
+    if (nightDriving) setColor(0.80f, 0.05f, 0.05f);
+    else setColor(0.55f, 0.02f, 0.02f);
+    pushMatrix(); translate(-0.107f, 0.05f, 0.038f); drawCube(0.005f, 0.018f, 0.018f); popMatrix();
+    pushMatrix(); translate(-0.107f, 0.05f, -0.038f); drawCube(0.005f, 0.018f, 0.018f); popMatrix();
+    // Amber strip
+    setColor(0.85f, 0.45f, 0.05f);
+    pushMatrix(); translate(-0.107f, 0.055f, 0.030f); drawCube(0.004f, 0.005f, 0.006f); popMatrix();
+    pushMatrix(); translate(-0.107f, 0.055f, -0.030f); drawCube(0.004f, 0.005f, 0.006f); popMatrix();
+
+    // ========== LICENSE PLATE (rear) ==========
+    setColor(0.90f, 0.90f, 0.85f);
+    pushMatrix(); translate(-0.108f, 0.035f, 0); drawCube(0.003f, 0.012f, 0.03f); popMatrix();
+
+    // ========== BUMPERS ==========
+    setColor(color * 0.55f);
+    pushMatrix(); translate(0.112f, 0.032f, 0); drawCube(0.006f, 0.022f, 0.095f); popMatrix();
+    pushMatrix(); translate(-0.112f, 0.032f, 0); drawCube(0.006f, 0.022f, 0.095f); popMatrix();
+
+    // ========== SIDE MIRRORS ==========
+    setColor(color * 0.85f);
+    pushMatrix(); translate(0.04f, 0.068f, 0.056f); drawCube(0.012f, 0.008f, 0.008f); popMatrix();
+    pushMatrix(); translate(0.04f, 0.068f, -0.056f); drawCube(0.012f, 0.008f, 0.008f); popMatrix();
+    // Mirror glass
+    setColor(0.50f, 0.55f, 0.60f);
+    pushMatrix(); translate(0.04f, 0.068f, 0.061f); drawCube(0.008f, 0.006f, 0.002f); popMatrix();
+    pushMatrix(); translate(0.04f, 0.068f, -0.061f); drawCube(0.008f, 0.006f, 0.002f); popMatrix();
 }
 
 void Car::drawRoof()
 {
-    Vec3 a1(0,0,-0.05);
-    Vec3 a2(0.025,0.05,-0.0375);
-    Vec3 a3(0.075,0.05,-0.0375);
-    Vec3 a4(0.1125,0,-0.05);
-    Vec3 a5(0,0,0.05);
-    Vec3 a6(0.025,0.05,0.0375);
-    Vec3 a7(0.075,0.05,0.0375);
-    Vec3 a8(0.1125,0,0.05);
+    // Trapezoidal cabin with proper windshield angles
+    Vec3 a1(0, 0, -0.052f);
+    Vec3 a2(0.020f, 0.048f, -0.040f);
+    Vec3 a3(0.072f, 0.048f, -0.040f);
+    Vec3 a4(0.110f, 0, -0.052f);
+    Vec3 a5(0, 0, 0.052f);
+    Vec3 a6(0.020f, 0.048f, 0.040f);
+    Vec3 a7(0.072f, 0.048f, 0.040f);
+    Vec3 a8(0.110f, 0, 0.052f);
 
     pushMatrix();
-    translate(-0.075, 0.035, 0);
+    translate(-0.072f, 0.025f, 0);
     beginDraw(QUADS);
 
-    // Roof top
+    // Roof panel (body color)
     setColor(color);
-    drawQuad(a2,a6,a7,a3);
+    drawQuad(a2, a6, a7, a3);
 
-    // Windows (cyan/tinted)
-    setColor(0.1f, 0.7f, 0.75f);
-    drawQuad(a1,a2,a3,a4);
-    drawQuad(a1,a5,a6,a2);
-    drawQuad(a5,a8,a7,a6);
-    drawQuad(a8,a4,a3,a7);
+    // Windshield (front, dark tinted)
+    setColor(0.12f, 0.20f, 0.28f);
+    drawQuad(a4, a8, a7, a3);
+
+    // Rear window (slightly lighter tint)
+    setColor(0.15f, 0.22f, 0.30f);
+    drawQuad(a1, a2, a6, a5);
+
+    // Side windows (lighter tint, visible interior)
+    setColor(0.18f, 0.30f, 0.38f);
+    drawQuad(a1, a5, a8, a4);   // bottom edge (actually skip this - it's the base)
+
+    // Left side window
+    setColor(0.15f, 0.28f, 0.35f);
+    drawQuad(a5, a8, a7, a6);
+
+    // Right side window
+    drawQuad(a1, a2, a3, a4);
 
     endDraw();
+
+    // Window trim (thin chrome line around windows)
+    setColor(0.65f, 0.65f, 0.68f);
+    // Front pillar trim
+    pushMatrix(); translate(0.093f, 0.024f, 0); drawCube(0.002f, 0.044f, 0.002f); popMatrix();
+
     popMatrix();
 }
 
@@ -607,102 +695,224 @@ void Bus::update(const float delta)
 void Bus::draw()
 {
     pushMatrix();
+    translate(0, 0.085f, 0);
 
-    translate(0,0.08,0);
+    // Day phase for night effects
+    int busPhase = Simulator::getInstance().getDayPhase();
+    bool busNight = (busPhase == 0 || busPhase == 1 || busPhase == 5 || busPhase == 6);
+    // Window glass color: warm interior at night, dark tint at day
+    Vec3 busGlassColor = busNight ? Vec3(0.65f, 0.55f, 0.35f) : Vec3(0.12f, 0.22f, 0.30f);
 
-    // --- Wheels (6 dark cubes: 4 main + 2 rear axle) ---
-    setColor(0.12f, 0.12f, 0.12f);
-    pushMatrix(); translate(0.25, -0.06, 0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
-    pushMatrix(); translate(0.25, -0.06, -0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
-    pushMatrix(); translate(-0.25, -0.06, 0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
-    pushMatrix(); translate(-0.25, -0.06, -0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
-    pushMatrix(); translate(0.0, -0.06, 0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
-    pushMatrix(); translate(0.0, -0.06, -0.07); drawCube(0.04, 0.04, 0.015); popMatrix();
+    // ========== WHEELS WITH RIMS (8 wheels: dual rear axle) ==========
+    for (int lr = -1; lr <= 1; lr += 2)
+    {
+        // Front axle
+        setColor(0.08f, 0.08f, 0.08f);
+        pushMatrix(); translate(0.28f, -0.065f, lr * 0.075f); drawCube(0.045f, 0.045f, 0.016f); popMatrix();
+        setColor(0.55f, 0.55f, 0.58f);
+        pushMatrix(); translate(0.28f, -0.065f, lr * 0.084f); drawCube(0.025f, 0.025f, 0.003f); popMatrix();
 
-    // --- Rear segment ---
+        // Middle axle
+        setColor(0.08f, 0.08f, 0.08f);
+        pushMatrix(); translate(0.0f, -0.065f, lr * 0.075f); drawCube(0.045f, 0.045f, 0.016f); popMatrix();
+        setColor(0.55f, 0.55f, 0.58f);
+        pushMatrix(); translate(0.0f, -0.065f, lr * 0.084f); drawCube(0.025f, 0.025f, 0.003f); popMatrix();
+
+        // Rear axle (dual)
+        setColor(0.08f, 0.08f, 0.08f);
+        pushMatrix(); translate(-0.28f, -0.065f, lr * 0.075f); drawCube(0.045f, 0.045f, 0.016f); popMatrix();
+        pushMatrix(); translate(-0.22f, -0.065f, lr * 0.075f); drawCube(0.045f, 0.045f, 0.016f); popMatrix();
+        setColor(0.55f, 0.55f, 0.58f);
+        pushMatrix(); translate(-0.28f, -0.065f, lr * 0.084f); drawCube(0.025f, 0.025f, 0.003f); popMatrix();
+    }
+
+    // ========== UNDERCARRIAGE ==========
+    setColor(0.06f, 0.06f, 0.06f);
+    pushMatrix(); translate(0, -0.05f, 0); drawCube(0.65f, 0.015f, 0.10f); popMatrix();
+
+    // ========== REAR SEGMENT ==========
+    pushMatrix();
+    rotateY(-busAngle / 1.3f);
+    translate(-0.2f, 0, 0);
+
+    // Body shell
     setColor(color);
-    pushMatrix();
-    rotateY(-busAngle / 1.3);
-    translate(-0.2,0,0);
-    drawCube(0.30, 0.15, 0.14);
-    // Windows
-    setColor(0.1f, 0.6f, 0.65f);
-    translate(-0.02,0.025,0);
-    drawCube(0.25,0.08,0.145);
+    drawCube(0.32f, 0.16f, 0.145f);
+
+    // Floor line (dark strip)
+    setColor(color * 0.4f);
+    pushMatrix(); translate(0, -0.06f, 0); drawCube(0.33f, 0.015f, 0.146f); popMatrix();
+
+    // Roof strip (lighter accent)
+    setColor(color * 1.15f);
+    pushMatrix(); translate(0, 0.075f, 0); drawCube(0.33f, 0.01f, 0.146f); popMatrix();
+
+    // Individual windows (rear segment — 4 windows per side)
+    for (int side = -1; side <= 1; side += 2)
+    {
+        float wz = side * 0.074f;
+        for (int w = 0; w < 4; w++)
+        {
+            float wx = -0.12f + w * 0.07f;
+            // Frame
+            setColor(0.55f, 0.55f, 0.58f);
+            pushMatrix(); translate(wx, 0.025f, wz); drawCube(0.055f, 0.07f, 0.002f); popMatrix();
+            // Glass
+            setColor(busGlassColor);
+            pushMatrix(); translate(wx, 0.025f, wz + side * 0.001f); drawCube(0.048f, 0.06f, 0.001f); popMatrix();
+        }
+    }
+
+    // Rear emergency door
+    setColor(0.20f, 0.20f, 0.22f);
+    pushMatrix(); translate(-0.161f, -0.01f, 0); drawCube(0.003f, 0.12f, 0.08f); popMatrix();
+    // Emergency door window
+    setColor(0.15f, 0.25f, 0.32f);
+    pushMatrix(); translate(-0.162f, 0.02f, 0); drawCube(0.002f, 0.05f, 0.05f); popMatrix();
+
+    // Rear taillights
+    setColor(0.60f, 0.02f, 0.02f);
+    pushMatrix(); translate(-0.162f, 0.0f, 0.055f); drawCube(0.003f, 0.04f, 0.015f); popMatrix();
+    pushMatrix(); translate(-0.162f, 0.0f, -0.055f); drawCube(0.003f, 0.04f, 0.015f); popMatrix();
+
     popMatrix();
 
-    // --- Front segment ---
+    // ========== FRONT SEGMENT ==========
+    pushMatrix();
+    rotateY(busAngle / 4.0f);
+    translate(0.2f, 0, 0);
+
+    // Body shell
     setColor(color);
-    pushMatrix();
-    rotateY(busAngle / 4);
-    translate(0.2,0,0);
-    drawCube(0.30, 0.15, 0.14);
-    // Windows
-    setColor(0.1f, 0.6f, 0.65f);
-    translate(0.02,0.025,0);
-    drawCube(0.27,0.08,0.145);
+    drawCube(0.32f, 0.16f, 0.145f);
+
+    // Floor line
+    setColor(color * 0.4f);
+    pushMatrix(); translate(0, -0.06f, 0); drawCube(0.33f, 0.015f, 0.146f); popMatrix();
+
+    // Roof strip
+    setColor(color * 1.15f);
+    pushMatrix(); translate(0, 0.075f, 0); drawCube(0.33f, 0.01f, 0.146f); popMatrix();
+
+    // Individual windows (front segment — 4 windows per side)
+    for (int side = -1; side <= 1; side += 2)
+    {
+        float wz = side * 0.074f;
+        for (int w = 0; w < 4; w++)
+        {
+            float wx = -0.10f + w * 0.07f;
+            setColor(0.55f, 0.55f, 0.58f);
+            pushMatrix(); translate(wx, 0.025f, wz); drawCube(0.055f, 0.07f, 0.002f); popMatrix();
+            setColor(busGlassColor);
+            pushMatrix(); translate(wx, 0.025f, wz + side * 0.001f); drawCube(0.048f, 0.06f, 0.001f); popMatrix();
+        }
+    }
+
+    // Large windshield
+    if (busNight) setColor(0.55f, 0.48f, 0.30f);  // warm interior visible
+    else setColor(0.10f, 0.18f, 0.25f);
+    pushMatrix(); translate(0.161f, 0.02f, 0); drawCube(0.003f, 0.10f, 0.12f); popMatrix();
+    // Windshield frame
+    setColor(0.20f, 0.20f, 0.22f);
+    pushMatrix(); translate(0.160f, 0.02f, 0); drawCube(0.002f, 0.11f, 0.13f); popMatrix();
+
+    // ---- Destination LED display (orange on black) ----
+    setColor(0.08f, 0.08f, 0.08f);
+    pushMatrix(); translate(0.162f, 0.06f, 0); drawCube(0.003f, 0.025f, 0.10f); popMatrix();
+    setColor(0.95f, 0.60f, 0.08f);
+    pushMatrix(); translate(0.163f, 0.06f, 0); drawCube(0.002f, 0.018f, 0.08f); popMatrix();
+
+    // ---- Route number (side display) ----
+    setColor(0.08f, 0.08f, 0.08f);
+    pushMatrix(); translate(0.12f, 0.06f, 0.074f); drawCube(0.04f, 0.02f, 0.002f); popMatrix();
+    setColor(0.90f, 0.55f, 0.05f);
+    pushMatrix(); translate(0.12f, 0.06f, 0.075f); drawCube(0.035f, 0.015f, 0.001f); popMatrix();
+
+    // ---- Front door (passenger entry) ----
+    setColor(0.15f, 0.15f, 0.18f);
+    pushMatrix(); translate(0.10f, -0.01f, 0.074f); drawCube(0.06f, 0.12f, 0.002f); popMatrix();
+    setColor(0.12f, 0.22f, 0.30f);
+    pushMatrix(); translate(0.10f, 0.02f, 0.075f); drawCube(0.04f, 0.06f, 0.001f); popMatrix();
+
+    // Headlights
+    setColor(0.82f, 0.82f, 0.84f);
+    pushMatrix(); translate(0.162f, -0.02f, 0.055f); drawCube(0.004f, 0.025f, 0.025f); popMatrix();
+    pushMatrix(); translate(0.162f, -0.02f, -0.055f); drawCube(0.004f, 0.025f, 0.025f); popMatrix();
+    if (busNight) setColor(1.0f, 0.98f, 0.85f);  // bright
+    else setColor(0.95f, 0.93f, 0.80f);
+    pushMatrix(); translate(0.164f, -0.02f, 0.055f); drawCube(0.002f, 0.020f, 0.020f); popMatrix();
+    pushMatrix(); translate(0.164f, -0.02f, -0.055f); drawCube(0.002f, 0.020f, 0.020f); popMatrix();
+
+    // Headlight beams at night
+    if (busNight)
+    {
+        setColor(0.85f, 0.80f, 0.55f);
+        pushMatrix(); translate(0.20f, -0.025f, 0.055f); drawCube(0.06f, 0.010f, 0.018f); popMatrix();
+        pushMatrix(); translate(0.20f, -0.025f, -0.055f); drawCube(0.06f, 0.010f, 0.018f); popMatrix();
+    }
+
+    // Front bumper
+    setColor(0.20f, 0.20f, 0.22f);
+    pushMatrix(); translate(0.165f, -0.05f, 0); drawCube(0.008f, 0.03f, 0.13f); popMatrix();
+
+    // Side mirrors
+    setColor(color * 0.8f);
+    pushMatrix(); translate(0.14f, 0.03f, 0.08f); drawCube(0.015f, 0.01f, 0.012f); popMatrix();
+    pushMatrix(); translate(0.14f, 0.03f, -0.08f); drawCube(0.015f, 0.01f, 0.012f); popMatrix();
+
     popMatrix();
 
-    // --- Articulation connector ---
-    setColor(0.4f, 0.4f, 0.0f);
-    drawCube(0.2,0.13,0.12);
+    // ========== ARTICULATION CONNECTOR (rubber bellows) ==========
+    setColor(0.25f, 0.25f, 0.20f);
+    drawCube(0.16f, 0.14f, 0.13f);
+    // Bellows folds (ribbed texture)
+    setColor(0.20f, 0.20f, 0.18f);
+    for (int r = -2; r <= 2; r++)
+    {
+        pushMatrix();
+        translate(r * 0.025f, 0, 0);
+        drawCube(0.005f, 0.13f, 0.132f);
+        popMatrix();
+    }
 
-    // --- Front destination display ---
+    // ========== MARKER LIGHTS (roofline) ==========
+    setColor(0.90f, 0.60f, 0.10f);
     pushMatrix();
-    rotateY(busAngle / 4);
-    setColor(0.9f, 0.6f, 0.1f);
-    translate(0.35, 0.04, 0);
-    drawCube(0.01, 0.04, 0.08);
+    rotateY(busAngle / 4.0f);
+    translate(0.2f, 0.082f, 0.065f); drawCube(0.28f, 0.005f, 0.005f);
+    popMatrix();
+    pushMatrix();
+    rotateY(busAngle / 4.0f);
+    translate(0.2f, 0.082f, -0.065f); drawCube(0.28f, 0.005f, 0.005f);
     popMatrix();
 
-    // --- Headlights ---
-    setColor(0.95f, 0.95f, 0.8f);
-    pushMatrix();
-    rotateY(busAngle / 4);
-    translate(0.35, -0.02, 0.05); drawCube(0.01, 0.02, 0.02);
-    popMatrix();
-    pushMatrix();
-    rotateY(busAngle / 4);
-    translate(0.35, -0.02, -0.05); drawCube(0.01, 0.02, 0.02);
-    popMatrix();
-
-    // --- Blinkers ---
+    // ========== BLINKERS ==========
     pushMatrix();
     if (blinker.which < 0 && blinker.isLighting)
     {
         setColor(blinkerColor);
-        translate(0, -0.031,-0.055);
-        drawCube(0.73,0.01,0.01);
+        translate(0, -0.035f, -0.06f);
+        drawCube(0.73f, 0.008f, 0.008f);
     }
     if (blinker.which > 0 && blinker.isLighting)
     {
         setColor(blinkerColor);
-        translate(0, -0.031,0.055);
-        drawCube(0.73,0.01,0.01);
+        translate(0, -0.035f, 0.06f);
+        drawCube(0.73f, 0.008f, 0.008f);
     }
     popMatrix();
 
-    // --- Brake lights ---
+    // ========== BRAKE LIGHTS ==========
     if (isBraking)
     {
         pushMatrix();
-        setColor(1,0,0);
-        rotateY(-busAngle / 1.3);
+        setColor(1, 0, 0);
+        rotateY(-busAngle / 1.3f);
 
-        pushMatrix();
-        translate(-0.3,0.05,0);
-        drawCube(0.12,0.003,0.06);
-        popMatrix();
+        pushMatrix(); translate(-0.35f, 0.05f, 0); drawCube(0.12f, 0.003f, 0.06f); popMatrix();
+        pushMatrix(); translate(-0.35f, -0.02f, 0.055f); drawCube(0.12f, 0.008f, 0.008f); popMatrix();
+        pushMatrix(); translate(-0.35f, -0.02f, -0.055f); drawCube(0.12f, 0.008f, 0.008f); popMatrix();
 
-        pushMatrix();
-        translate(-0.3,-0.02,0.05);
-        drawCube(0.12,0.01,0.01);
-        popMatrix();
-
-        pushMatrix();
-        translate(-0.3,-0.02,-0.05);
-        drawCube(0.12,0.01,0.01);
-        popMatrix();
         popMatrix();
     }
 

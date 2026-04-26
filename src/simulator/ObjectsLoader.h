@@ -13,6 +13,7 @@
 #include "Road.h"
 #include "Garage.h"
 #include "Vehicle.h"
+#include "Environment.h"
 
 class ObjectsLoader
 {

@@ -29,6 +29,10 @@ public:
 
     void run();
 
+    // Day/Night cycle — public so Environment/Vehicle/Garage can query
+    int getDayPhase() const;
+    float getWorldTime() const;
+
 protected:
     GameObject* findObjectByName(const std::string objectName) const;
     void loadedNewObject(GameObject *newGameObject);
@@ -84,6 +88,25 @@ private:
     void setupProjection();
 
     const float CAMERA_VELOCITY;
+
+    // ===== Day/Night Cycle =====
+    enum DayPhase { PHASE_NIGHT=0, PHASE_DAWN, PHASE_MORNING, PHASE_NOON,
+                    PHASE_AFTERNOON, PHASE_EVENING, PHASE_DUSK, PHASE_COUNT };
+
+    float worldTime;           // 0.0-24.0 simulated hours
+    float timeSpeed;           // sim-minutes per real-second
+    bool  timeFlowing;         // M key toggle
+    int   dayPhase;
+
+    void  updateWorldTime(float delta);
+    int   computeDayPhase() const;
+    float getDayPhaseProgress() const;  // 0.0-1.0 within current phase
+
+    // Dynamic lighting helpers
+    void  updateSkyAndLighting();
+
+    static const char* phaseNames[PHASE_COUNT];
+    static float phaseBoundaries[PHASE_COUNT + 1];
 };
 
 #endif // SIMULTOR_H

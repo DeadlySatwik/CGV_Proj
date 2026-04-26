@@ -26,6 +26,7 @@ SRCS+=src/simulator/Simulator.cpp
 SRCS+=src/simulator/Road.cpp
 SRCS+=src/simulator/Vehicle.cpp 
 SRCS+=src/simulator/Garage.cpp
+SRCS+=src/simulator/Environment.cpp
 
 OBJS=$(subst .cpp,.o,$(SRCS))
 
@@ -44,6 +45,7 @@ Simulator.o: Simulator.cpp
 Street.o: Road.cpp
 Vehicle.o: Vehicle.cpp
 Garage.o: Garage.cpp
+Environment.o: Environment.cpp
 Colors.o: Colors.cpp
 ExceptionClass.o: ExceptionClass.cpp
 
