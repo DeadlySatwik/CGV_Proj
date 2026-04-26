@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/vichanshu/Desktop/CGV_Proj/without_traffic_light/src/main.cpp" "CMakeFiles/TrafficSim.dir/src/main.cpp.o" "gcc" "CMakeFiles/TrafficSim.dir/src/main.cpp.o.d"
+  "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/src/main.cpp" "CMakeFiles/TrafficSim.dir/src/main.cpp.o" "gcc" "CMakeFiles/TrafficSim.dir/src/main.cpp.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

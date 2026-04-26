@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/CMakeFiles/glm_ext-populate"
+		},
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/CMakeFiles/glm_ext-populate.rule"
+		},
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/CMakeFiles/glm_ext-populate-complete.rule"
+		},
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/glm_ext-populate-prefix/src/glm_ext-populate-stamp/glm_ext-populate-build.rule"
+		},
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/glm_ext-populate-prefix/src/glm_ext-populate-stamp/glm_ext-populate-configure.rule"
+		},
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/glm_ext-populate-prefix/src/glm_ext-populate-stamp/glm_ext-populate-download.rule"
+		},
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/glm_ext-populate-prefix/src/glm_ext-populate-stamp/glm_ext-populate-install.rule"
+		},
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/glm_ext-populate-prefix/src/glm_ext-populate-stamp/glm_ext-populate-mkdir.rule"
+		},
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/glm_ext-populate-prefix/src/glm_ext-populate-stamp/glm_ext-populate-patch.rule"
+		},
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/glm_ext-populate-prefix/src/glm_ext-populate-stamp/glm_ext-populate-test.rule"
+		},
+		{
+			"file" : "/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-subbuild/glm_ext-populate-prefix/src/glm_ext-populate-stamp/glm_ext-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"glm_ext-populate"
+		],
+		"name" : "glm_ext-populate"
+	}
+}

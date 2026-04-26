@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = 
 
-CXX_INCLUDES = 
+CXX_INCLUDES = -I/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/glm_ext-src
 
 CXX_FLAGS = -std=gnu++17
 

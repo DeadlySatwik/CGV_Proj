@@ -1,0 +1,14 @@
+# Target labels
+ assimp_ext-populate
+# Source files and their labels
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/CMakeFiles/assimp_ext-populate
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/CMakeFiles/assimp_ext-populate.rule
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/CMakeFiles/assimp_ext-populate-complete.rule
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/assimp_ext-populate-prefix/src/assimp_ext-populate-stamp/assimp_ext-populate-build.rule
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/assimp_ext-populate-prefix/src/assimp_ext-populate-stamp/assimp_ext-populate-configure.rule
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/assimp_ext-populate-prefix/src/assimp_ext-populate-stamp/assimp_ext-populate-download.rule
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/assimp_ext-populate-prefix/src/assimp_ext-populate-stamp/assimp_ext-populate-install.rule
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/assimp_ext-populate-prefix/src/assimp_ext-populate-stamp/assimp_ext-populate-mkdir.rule
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/assimp_ext-populate-prefix/src/assimp_ext-populate-stamp/assimp_ext-populate-patch.rule
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/assimp_ext-populate-prefix/src/assimp_ext-populate-stamp/assimp_ext-populate-test.rule
+/home/kyan/Downloads/cgv/CGV_Proj/without_traffic_light/build/_deps/assimp_ext-subbuild/assimp_ext-populate-prefix/src/assimp_ext-populate-stamp/assimp_ext-populate-update.rule

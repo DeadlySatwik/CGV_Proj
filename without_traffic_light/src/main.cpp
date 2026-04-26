@@ -24,7 +24,7 @@ struct Car {
 
     void update(float deltaTime) {
         t += speed * deltaTime;
-        if (t > 1.0f) t = 0.0f;
+        if (t > 1.0f) t -= 1.0f;
 
         glm::vec3 oldPos = position;
 
@@ -37,23 +37,44 @@ struct Car {
             // Straight underpass in opposite direction: Left lane, moving -Z
             position = glm::vec3(-1.2f, 0.55f, 18.0f * (1.0f - t) - 18.0f * t);
         } else if (pathType == 2) {
-            // Curved bridge: Come from +X (top lane going -X) turn onto -Z (right lane moving -Z)
-            glm::vec3 p0(18.0f, 0.55f, 1.2f);
-            glm::vec3 p1(1.2f, 2.5f, 1.2f); // Bridge peak
-            glm::vec3 p2(1.2f, 0.55f, -18.0f);
-
-            float u = 1.0f - t;
-            position = u * u * p0 + 2.0f * u * t * p1 + t * t * p2;
+            // Bridge 1 (top bridge): explicit elevated left->right crossing over the top deck.
+            float s = std::max(0.0f, std::min(1.0f, t));
+    glm::vec3 p0(-20.0f, 0.70f, 10.5f); 
+    glm::vec3 p1(-8.5f, 0.650f, 11.5f);  // Start point
+    glm::vec3 p2(-9.0f, 8.60f, 40.0f);   // Control 1 (going up)
+   
+    glm::vec3 p3(9.0f, 8.60f, 35.0f);    // Control 2 (going down)
+    glm::vec3 p4(10.0f, 0.70f, 14.0f); 
+    
+    
+    float u = 1.0f - s;
+    
+    // Quartic Bezier Formula
+    position = (u * u * u * u * p0) + 
+               (4.0f * u * u * u * s * p1) + 
+               (6.0f * u * u * s * s * p2) + 
+               (4.0f * u * s * s * s * p3) + 
+               (s * s * s * s * p4);
         } else if (pathType == 3) {
-            // Curved bridge: Come from -Z (right lane moving +Z) turn onto -X (bottom lane moving -X)
-            // Wait, moving -X is on the top lane usually.  Let's do -Z to +X (already path 5).
-            // Let's do +Z to +X.
-            glm::vec3 p0(-1.2f, 0.55f, 18.0f);
-            glm::vec3 p1(-1.2f, 2.5f, -1.2f); // Bridge peak
-            glm::vec3 p2(-18.0f, 0.55f, -1.2f);
+            // Bridge 2: curved bridge-shaped elevated path pushed toward the top edge.
+            float sRaw = std::max(0.0f, std::min(1.0f, t));
+            // Smoothstep easing reduces abrupt visual speed changes near the ramps.
+            float s = sRaw * sRaw * (3.0f - 2.0f * sRaw);
+            // Start a little lower on the right-side bridge entry, then move left while elevated.
+            glm::vec3 p_start(17.0f, 0.7f, -12.5f); // Adjust these coordinates as needed
+glm::vec3 p0(10.0f, 0.70f, -11.5f);
+glm::vec3 p1(11.0f, 10.8f, -40.0f);
+glm::vec3 p2(-11.0f, 10.8f, -25.5f);
+glm::vec3 p3(-10.0f, 0.90f, -14.0f);
 
-            float u = 1.0f - t;
-            position = u * u * p0 + 2.0f * u * t * p1 + t * t * p2;
+float u = 1.0f - s;
+
+// 2. Use the Quartic (5-point) Bezier formula
+position = (u * u * u * u * p_start) + 
+           (4.0f * u * u * u * s * p0) + 
+           (6.0f * u * u * s * s * p1) + 
+           (4.0f * u * s * s * s * p2) + 
+           (s * s * s * s * p3);
         } else if (pathType == 4) {
             // Curved bridge: Come from -X (right lane) and turn onto +Z (right lane)
             glm::vec3 p0(-18.0f, 0.55f, -1.2f);
@@ -181,15 +202,22 @@ int main() {
 
     glEnable(GL_DEPTH_TEST);
 
-// 2. Setup Real Car Paths (strictly bound inside road dimensions)
-    cars.push_back({0, 0.0f,  0.08f, glm::vec3(1.0f, 0.0f, 0.0f)}); // Lane 1 (Straight) Z+
-    cars.push_back({1, 0.4f,  0.09f, glm::vec3(0.0f, 0.5f, 1.0f)}); // Lane 2 (Straight) Z-
+    // 2. Setup exactly three cars, one straight and one on each bridge.
+cars.push_back({0, 0.00f, 0.4f, glm::vec3(1.0f, 0.2f, 0.2f)}); // Lead red car
+cars.push_back({0, 0.15f, 0.4f, glm::vec3(1.0f, 0.8f, 0.2f)}); // Following yellow car
+cars.push_back({0, 0.30f, 0.4f, glm::vec3(0.8f, 0.2f, 1.0f)}); // Following purple car
 
-    cars.push_back({2, 0.1f,  0.05f, glm::vec3(0.0f, 1.0f, 0.0f)}); // Lane 3 (Curved Bridge: +X to -Z)
-    cars.push_back({3, 0.6f,  0.06f, glm::vec3(1.0f, 1.0f, 0.0f)}); // Lane 4 (Curved Bridge: +Z to -X)
+// --- Path 1: Straight Underpass (-Z) ---
+cars.push_back({1, 0.05f, 0.45f, glm::vec3(0.2f, 0.9f, 0.9f)}); // Cyan car heading opposite
 
-    cars.push_back({4, 0.2f,  0.07f, glm::vec3(1.0f, 0.0f, 1.0f)}); // Curved Bridge (turning right from -X to +Z)
-    cars.push_back({5, 0.05f, 0.06f, glm::vec3(0.8f, 0.2f, 0.0f)}); // Curved Bridge (turning right from -Z to +X)
+// --- Path 2: Bridge 1 (Green trajectory) ---
+// Note: Lower speed for bridges often looks better for curved paths
+cars.push_back({2, 0.00f, 0.28f, glm::vec3(0.2f, 1.0f, 0.2f)}); // Lead green car
+cars.push_back({2, 0.20f, 0.28f, glm::vec3(0.5f, 1.0f, 0.5f)}); // Following light green car
+
+// --- Path 3: Bridge 2 (Blue trajectory) ---
+cars.push_back({3, 0.00f, 0.32f, glm::vec3(0.2f, 0.4f, 1.0f)}); // Lead blue car
+cars.push_back({3, 0.25f, 0.32f, glm::vec3(0.6f, 0.7f, 1.0f)}); // Following light blue car
 
     // 3. Define basic cube vertices for roads and cars
     float vertices[] = {
@@ -299,18 +327,16 @@ int main() {
         // View/Projection transformations
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 10000.0f);
 
-        // Rotating camera to find the model from different angles
-        float camX = sin(glfwGetTime() * 0.5f) * 100.0f;
-        float camZ = cos(glfwGetTime() * 0.5f) * 100.0f;
-        glm::mat4 view = glm::lookAt(glm::vec3(camX, 30.0f, camZ), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        // Fixed camera so the frame does not rotate.
+        glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 70.0f, 95.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
         shaderProgram.setMat4("projection", projection);
         shaderProgram.setMat4("view", view);
 
         // Lighting settings
         shaderProgram.setVec3("lightColor", 1.0f, 1.0f, 1.0f);
-        shaderProgram.setVec3("lightPos", camX, 100.0f, camZ);
-        shaderProgram.setVec3("viewPos", camX, 30.0f, camZ);
+        shaderProgram.setVec3("lightPos", 0.0f, 100.0f, 120.0f);
+        shaderProgram.setVec3("viewPos", 0.0f, 70.0f, 95.0f);
 
         // Render the base GLB model using Assimp
         glm::mat4 modelMatrix = glm::mat4(1.0f);
