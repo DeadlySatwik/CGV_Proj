@@ -34,8 +34,9 @@ SRCS+=src/simulator/Vehicle.cpp
 SRCS+=src/simulator/Garage.cpp
 SRCS+=src/simulator/Environment.cpp
 SRCS+=src/simulator/PlayerCar.cpp
-SRCS+=src/simulator/RuleManager.cpp
-
+SRCS+=src/simulator/TrainingManager.cpp
+SRCS+=src/simulator/ModeManager.cpp
+SRCS+=src/simulator/ExamManager.cpp
 OBJS=$(subst .cpp,.o,$(SRCS))
 
 wielo: $(OBJS)

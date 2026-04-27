@@ -18,10 +18,14 @@ public:
         INPUT_ACCEL      = (1 << 0),
         INPUT_BRAKE      = (1 << 1),
         INPUT_STEER_LEFT = (1 << 2),
-        INPUT_STEER_RIGHT= (1 << 3)
+        INPUT_STEER_RIGHT= (1 << 3),
+        INPUT_HORN       = (1 << 4)
     };
 
     void handleInput(unsigned int inputMap, const float delta);
+
+    bool isHonking;
+    bool wasHonking;
 
     // Camera helpers for 3rd person view
     virtual Vec3 getCameraPos() const;

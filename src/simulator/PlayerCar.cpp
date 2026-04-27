@@ -3,6 +3,9 @@
 #include "PlayerCar.h"
 #include "Simulator.h"
 #include <cmath>
+#include <iostream>
+
+using namespace std;
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -22,6 +25,8 @@ PlayerCar::PlayerCar(Vec3 startPos)
 
     oldPos = pos;
     oldHeading = heading;
+    isHonking = false;
+    wasHonking = false;
 
     // Distinct bright blue color so player car stands out
     carColor = Vec3(0.15f, 0.45f, 0.90f);
@@ -53,6 +58,13 @@ void PlayerCar::revertPosition()
 
 void PlayerCar::handleInput(unsigned int inputMap, const float delta)
 {
+    wasHonking = isHonking;
+    isHonking = (inputMap & INPUT_HORN) != 0;
+
+    if (isHonking && !wasHonking) {
+        cout << "\a\n*** HONK! ***" << endl;
+    }
+
     // Steering response scales with speed for stability.
     float speedAbs = fabs(speed);
     if (speedAbs > 0.02f)
