@@ -1,4 +1,4 @@
-//This class bases on Code::Blocks OpenGL template (OpenGL + X11)
+// This class bases on Code::Blocks OpenGL template (OpenGL + X11)
 
 #ifndef _WIN32
 
@@ -17,19 +17,19 @@ void EngineCore::SetCmdArgs(int argC, char **argV)
 int EngineCore::init()
 {
     int snglBuf[] = {GLX_RGBA, GLX_DEPTH_SIZE, 16, None};
-    int dblBuf[]  = {GLX_RGBA, GLX_DEPTH_SIZE, 16, GLX_DOUBLEBUFFER, None};
+    int dblBuf[] = {GLX_RGBA, GLX_DEPTH_SIZE, 16, GLX_DOUBLEBUFFER, None};
 
     dpy = NULL;
-    win = (Window) NULL;
+    win = (Window)NULL;
     doubleBuffer = GL_TRUE;
     eventMask = 0;
 
-    XVisualInfo         *vi;
-    Colormap             cmap;
+    XVisualInfo *vi;
+    Colormap cmap;
     XSetWindowAttributes swa;
-    GLXContext           cx;
+    GLXContext cx;
 
-    int                  dummy;
+    int dummy;
 
     /*** (1) open a connection to the X server ***/
 
@@ -39,7 +39,7 @@ int EngineCore::init()
 
     /*** (2) make sure OpenGL's GLX extension supported ***/
 
-    if(!glXQueryExtension(dpy, &dummy, &dummy))
+    if (!glXQueryExtension(dpy, &dummy, &dummy))
         throw ExceptionClass("X server has no OpenGL GLX extension");
 
     /*** (3) find an appropriate visual ***/
@@ -49,17 +49,18 @@ int EngineCore::init()
     if (vi == NULL)
     {
         vi = glXChooseVisual(dpy, DefaultScreen(dpy), snglBuf);
-        if (vi == NULL) throw ExceptionClass("no RGB visual with depth buffer");
+        if (vi == NULL)
+            throw ExceptionClass("no RGB visual with depth buffer");
         doubleBuffer = GL_FALSE;
     }
-    if(vi->c_class != TrueColor)
+    if (vi->c_class != TrueColor)
         throw ExceptionClass("TrueColor visual required for this program");
 
     /*** (4) create an OpenGL rendering context  ***/
 
     /* create an OpenGL rendering context */
     cx = glXCreateContext(dpy, vi, /* no shared dlists */ None,
-                            /* direct rendering if possible */ GL_TRUE);
+                          /* direct rendering if possible */ GL_TRUE);
     if (cx == NULL)
         throw ExceptionClass("could not create rendering context");
 
@@ -69,12 +70,11 @@ int EngineCore::init()
     cmap = XCreateColormap(dpy, RootWindow(dpy, vi->screen), vi->visual, AllocNone);
     swa.colormap = cmap;
     swa.border_pixel = 0;
-    swa.event_mask = KeyPressMask    | ExposureMask | KeyReleaseMask
-                     | ButtonPressMask | StructureNotifyMask | Button1MotionMask;
+    swa.event_mask = KeyPressMask | ExposureMask | KeyReleaseMask | ButtonPressMask | StructureNotifyMask | Button1MotionMask;
     eventMask = swa.event_mask;
     win = XCreateWindow(dpy, RootWindow(dpy, vi->screen), 0, 0,
-                          width, height, 0, vi->depth, InputOutput, vi->visual,
-                          CWBorderPixel | CWColormap | CWEventMask, &swa);
+                        width, height, 0, vi->depth, InputOutput, vi->visual,
+                        CWBorderPixel | CWColormap | CWEventMask, &swa);
     XSetStandardProperties(dpy, win, "City traffic simulation", "main", None, argv, argc, NULL);
 
     /*** (6) bind the rendering context to the window ***/
@@ -128,17 +128,23 @@ void EngineCore::checkEvents()
 {
     XEvent event;
 
-    auto translateKey = [](KeySym keysym, char ascii) -> int {
+    auto translateKey = [](KeySym keysym, char ascii) -> int
+    {
         if (ascii != 0)
             return (unsigned char)ascii;
 
         switch (keysym)
         {
-            case XK_Up:    return 38;
-            case XK_Down:  return 40;
-            case XK_Left:  return 37;
-            case XK_Right: return 39;
-            default:       return 0;
+        case XK_Up:
+            return 38;
+        case XK_Down:
+            return 40;
+        case XK_Left:
+            return 37;
+        case XK_Right:
+            return 39;
+        default:
+            return 0;
         }
     };
 
@@ -148,73 +154,75 @@ void EngineCore::checkEvents()
 
         switch (event.type)
         {
-            case KeyPress:
+        case KeyPress:
+        {
+            KeySym keysym;
+            char buffer[4];
+            XLookupString((XKeyEvent *)&event, buffer, 4, &keysym, NULL);
+
+            int keyCode = translateKey(keysym, buffer[0]);
+
+            if (keyCode != 0)
             {
-                KeySym     keysym;
-                char       buffer[4];
-                XLookupString((XKeyEvent *)&event, buffer, 4, &keysym, NULL);
-
-                int keyCode = translateKey(keysym, buffer[0]);
-
-                if (keyCode != 0)
-                {
-                    keyPressed((char)keyCode);
-                    heldKeys[(unsigned int)keyCode] = true;
-                }
-
-                break;
+                keyPressed((char)keyCode);
+                heldKeys[(unsigned int)keyCode] = true;
             }
 
-            case KeyRelease:
+            break;
+        }
+
+        case KeyRelease:
+        {
+            KeySym keysym;
+            char buffer[4];
+            XLookupString((XKeyEvent *)&event, buffer, 4, &keysym, NULL);
+
+            int keyCode = translateKey(keysym, buffer[0]);
+
+            if (keyCode != 0)
             {
-                KeySym     keysym;
-                char       buffer[4];
-                XLookupString((XKeyEvent *)&event, buffer, 4, &keysym, NULL);
-
-                int keyCode = translateKey(keysym, buffer[0]);
-
-                if (keyCode != 0)
-                {
-                    heldKeys[(unsigned int)keyCode] = false;
-                    if (keyCode >= 'a' && keyCode <= 'z') heldKeys[(unsigned int)keyCode - 32] = false;
-                    if (keyCode >= 'A' && keyCode <= 'Z') heldKeys[(unsigned int)keyCode + 32] = false;
-                }
-                break;
+                heldKeys[(unsigned int)keyCode] = false;
+                if (keyCode >= 'a' && keyCode <= 'z')
+                    heldKeys[(unsigned int)keyCode - 32] = false;
+                if (keyCode >= 'A' && keyCode <= 'Z')
+                    heldKeys[(unsigned int)keyCode + 32] = false;
             }
+            break;
+        }
 
-            case ButtonPress:
+        case ButtonPress:
 
-                XButtonEvent *bevent;
-                bevent = (XButtonEvent*) &event;
+            XButtonEvent *bevent;
+            bevent = (XButtonEvent *)&event;
 
-                prevMouseX = bevent->x;
-                prevMouseY = bevent->y;
+            prevMouseX = bevent->x;
+            prevMouseY = bevent->y;
 
-                break;
+            break;
 
-            case MotionNotify:
-            {
-                XMotionEvent *mevent;
-                mevent = (XMotionEvent *) &event;
+        case MotionNotify:
+        {
+            XMotionEvent *mevent;
+            mevent = (XMotionEvent *)&event;
 
-                int dx = mevent->x - prevMouseX;
-                int dy = mevent->y - prevMouseY;
+            int dx = mevent->x - prevMouseX;
+            int dy = mevent->y - prevMouseY;
 
-                mouseMove(dx, dy);
+            mouseMove(dx, dy);
 
-                prevMouseX = mevent->x;
-                prevMouseY = mevent->y;
+            prevMouseX = mevent->x;
+            prevMouseY = mevent->y;
 
-                break;
-            }
+            break;
+        }
 
-            case ConfigureNotify:
+        case ConfigureNotify:
 
-                width = event.xconfigure.width;
-                height = event.xconfigure.height;
-                updateRatio();
+            width = event.xconfigure.width;
+            height = event.xconfigure.height;
+            updateRatio();
 
-                break;
+            break;
         }
     }
 

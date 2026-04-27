@@ -400,7 +400,7 @@ Simulator::Simulator() : maxNumberOfObjects(0), CAMERA_VELOCITY(3)
     playerVehicles.push_back(new PlayerBike(Vec3(6.0f, 0.0f, 0.0f)));
     currentVehicleIdx = 0;
     activePlayerVeh = playerVehicles[currentVehicleIdx];
-    
+
     thirdPersonMode = false;
     playerInputMap = 0;
     globalMaxVehicles = 50;
@@ -495,9 +495,12 @@ void Simulator::keyPressed(char k)
         modeManager.toggleMode();
         break;
     case 'v':
-        if (modeManager.getMode() == ModeManager::TRAINING) {
+        if (modeManager.getMode() == ModeManager::TRAINING)
+        {
             modeManager.getTrainingManager().cycleLesson();
-        } else {
+        }
+        else
+        {
             cout << "\n[INFO] Switch to Training Mode (R) first to change lessons." << endl;
         }
         break;
@@ -518,7 +521,8 @@ void Simulator::keyPressed(char k)
         cout << "Projection: " << (projectionOrtho ? "Orthographic" : "Perspective") << endl;
         break;
     case 'p':
-        if (modeManager.getMode() == ModeManager::TRAINING) {
+        if (modeManager.getMode() == ModeManager::TRAINING)
+        {
             modeManager.getTrainingManager().tryPark(activePlayerVeh);
         }
         break;
@@ -556,18 +560,19 @@ void Simulator::keyPressed(char k)
     case '3':
     {
         int newIdx = k - '1';
-        if (newIdx != currentVehicleIdx) {
+        if (newIdx != currentVehicleIdx)
+        {
             PlayerCar *oldVeh = playerVehicles[currentVehicleIdx];
             currentVehicleIdx = newIdx;
             activePlayerVeh = playerVehicles[currentVehicleIdx];
-            
+
             // Transfer state
             activePlayerVeh->setPos(oldVeh->getPos());
             activePlayerVeh->speed = oldVeh->speed;
             activePlayerVeh->heading = oldVeh->heading;
             activePlayerVeh->setRot(oldVeh->getRot());
             activePlayerVeh->setOldPosition();
-            
+
             cout << "Switched to vehicle " << (newIdx == 0 ? "Car" : (newIdx == 1 ? "Bus" : "Bike")) << endl;
         }
         break;
@@ -654,7 +659,7 @@ void Simulator::singleUpdate(const float delta)
     }
 
     // Evaluate rules for the active player vehicle
-    Driveable* currentRoad = getRoadAt(activePlayerVeh->getPos());
+    Driveable *currentRoad = getRoadAt(activePlayerVeh->getPos());
     modeManager.update(activePlayerVeh, objects, delta, currentRoad);
 
     updateWorldTime(delta); // advance world clock
@@ -844,11 +849,11 @@ bool Simulator::sampleRoadHeight(const Vec3 &testPos, float &outHeight) const
     return false;
 }
 
-Driveable* Simulator::getRoadAt(const Vec3& testPos) const
+Driveable *Simulator::getRoadAt(const Vec3 &testPos) const
 {
     const float roadHW = 0.4f;
     float bestDistance = 1e9f;
-    Driveable* bestRoad = nullptr;
+    Driveable *bestRoad = nullptr;
 
     for (const auto &obj : objects)
     {
@@ -918,7 +923,7 @@ void Simulator::printTelemetry() const
 {
     int h = (int)worldTime;
     int m = (int)((worldTime - h) * 60);
-    
+
     if (modeManager.getMode() == ModeManager::BASIC_DRIVING)
     {
         cout << "[" << (h < 10 ? "0" : "") << h << ":" << (m < 10 ? "0" : "") << m << "] "
@@ -931,9 +936,10 @@ void Simulator::printTelemetry() const
     }
     else if (modeManager.getMode() == ModeManager::TRAINING)
     {
-        const TrainingManager& tm = modeManager.getTrainingManager();
+        const TrainingManager &tm = modeManager.getTrainingManager();
         std::string warnStr = tm.getCurrentWarning();
-        if (!warnStr.empty()) {
+        if (!warnStr.empty())
+        {
             warnStr = " | WARNING: " + warnStr;
         }
 
@@ -949,18 +955,17 @@ void Simulator::printTelemetry() const
     }
     else if (modeManager.getMode() == ModeManager::EXAM)
     {
-        const ExamManager& em = modeManager.getExamManager();
-        const TrainingManager& tm = modeManager.getTrainingManager();
+        const ExamManager &em = modeManager.getExamManager();
+        const TrainingManager &tm = modeManager.getTrainingManager();
         std::string warnStr = tm.getCurrentWarning();
-        if (!warnStr.empty()) {
+        if (!warnStr.empty())
+        {
             warnStr = " | WARNING: " + warnStr;
         }
 
         cout << "[" << (h < 10 ? "0" : "") << h << ":" << (m < 10 ? "0" : "") << m << "] "
              << phaseNames[dayPhase]
-             << " | [EXAM] State: " << (em.getState() == ExamManager::IN_PROGRESS ? "IN PROGRESS" : 
-                                      (em.getState() == ExamManager::PASSED ? "PASSED" : 
-                                      (em.getState() == ExamManager::FAILED ? "FAILED" : "NOT STARTED")))
+             << " | [EXAM] State: " << (em.getState() == ExamManager::IN_PROGRESS ? "IN PROGRESS" : (em.getState() == ExamManager::PASSED ? "PASSED" : (em.getState() == ExamManager::FAILED ? "FAILED" : "NOT STARTED")))
              << warnStr
              << " | Active: " << getActiveVehicleCount()
              << " | Cam: " << (thirdPersonMode ? "3rd" : "Free")

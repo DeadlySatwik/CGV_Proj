@@ -2,9 +2,9 @@
 
 #include "EngineCoreBase.h"
 
-EngineCoreBase::EngineCoreBase() :  MIN_TIME_SCALE(0.25),       MAX_TIME_SCALE(15.0),
-                                    MIN_UPDATES_PER_FRAME(1),   MAX_UPDATES_PER_FRAME(1000),
-                                    MIN_DELTA(0.007),           MAX_DELTA(0.15)
+EngineCoreBase::EngineCoreBase() : MIN_TIME_SCALE(0.25), MAX_TIME_SCALE(15.0),
+                                   MIN_UPDATES_PER_FRAME(1), MAX_UPDATES_PER_FRAME(1000),
+                                   MIN_DELTA(0.007), MAX_DELTA(0.15)
 {
     timeScale = 1.0;
     updatesPerFrame = 2;
@@ -22,7 +22,8 @@ void EngineCoreBase::run()
     while (true)
     {
         checkEvents();
-        if (goingToBreakMainLoop) break;
+        if (goingToBreakMainLoop)
+            break;
 
         performFrame(getDeltaTime());
     }
@@ -32,12 +33,14 @@ void EngineCoreBase::run()
 void EngineCoreBase::performFrame(const float realUnscaledDelta)
 {
     float delta = realUnscaledDelta * timeScale;
-    if (delta > MAX_DELTA) delta = MAX_DELTA;
-    if (delta < MIN_DELTA) delta = MIN_DELTA;
+    if (delta > MAX_DELTA)
+        delta = MAX_DELTA;
+    if (delta < MIN_DELTA)
+        delta = MIN_DELTA;
 
     singleUpdate(delta);
 
-    for(int i=0; i < updatesPerFrame; i++)
+    for (int i = 0; i < updatesPerFrame; i++)
     {
         update(delta);
     }
@@ -79,12 +82,12 @@ void EngineCoreBase::initLight()
 {
     // One-time GL setup — ambient/diffuse/position are now set
     // dynamically per-frame in Simulator::updateSkyAndLighting()
-    const GLfloat lspecular[]   = { 0.3f, 0.3f, 0.3f, 1.0f };
+    const GLfloat lspecular[] = {0.3f, 0.3f, 0.3f, 1.0f};
 
-    const GLfloat mambient[]    = { 0.7f, 0.7f, 0.7f, 1.0f };
-    const GLfloat mdiffuse[]    = { 0.9f, 0.9f, 0.9f, 1.0f };
-    const GLfloat mspecular[]   = { 0.1f, 0.1f, 0.1f, 1.0f };
-    const GLfloat shininess[]   = { 20.0f };
+    const GLfloat mambient[] = {0.7f, 0.7f, 0.7f, 1.0f};
+    const GLfloat mdiffuse[] = {0.9f, 0.9f, 0.9f, 1.0f};
+    const GLfloat mspecular[] = {0.1f, 0.1f, 0.1f, 1.0f};
+    const GLfloat shininess[] = {20.0f};
 
     glEnable(GL_LIGHT0);
     glEnable(GL_NORMALIZE);
@@ -93,9 +96,9 @@ void EngineCoreBase::initLight()
 
     glLightfv(GL_LIGHT0, GL_SPECULAR, lspecular);
 
-    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT,   mambient);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE,   mdiffuse);
-    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR,  mspecular);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, mambient);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, mdiffuse);
+    glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, mspecular);
     glMaterialfv(GL_FRONT_AND_BACK, GL_SHININESS, shininess);
 }
 

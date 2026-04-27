@@ -61,7 +61,8 @@ void PlayerCar::handleInput(unsigned int inputMap, const float delta)
     wasHonking = isHonking;
     isHonking = (inputMap & INPUT_HORN) != 0;
 
-    if (isHonking && !wasHonking) {
+    if (isHonking && !wasHonking)
+    {
         cout << "\a\n*** HONK! ***" << endl;
     }
 
@@ -525,7 +526,7 @@ void PlayerBus::draw()
     translate(0.252f, 0.09f, 0);
     drawCube(0.002f, 0.06f, 0.09f); // front
     popMatrix();
-    
+
     for (int side = -1; side <= 1; side += 2)
     {
         for (int w = 0; w < 4; w++)
@@ -618,10 +619,12 @@ void PlayerBike::draw()
 
     // Rims
     setColor(0.65f, 0.65f, 0.68f);
-    for(int i=-1; i<=1; i+=2) {
-        for(int j=-1; j<=1; j+=2) {
+    for (int i = -1; i <= 1; i += 2)
+    {
+        for (int j = -1; j <= 1; j += 2)
+        {
             pushMatrix();
-            translate(i*0.045f, 0.016f, j*0.006f);
+            translate(i * 0.045f, 0.016f, j * 0.006f);
             drawCube(0.018f, 0.018f, 0.002f);
             popMatrix();
         }

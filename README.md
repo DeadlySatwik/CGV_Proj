@@ -118,291 +118,291 @@ Note on generated artifacts:
 #### Root-level files
 
 - `.gitignore`
-	- Use: ignores temporary/build artifacts.
-	- How: excludes object files (`*.o`) and built executable names so they are not committed.
+  - Use: ignores temporary/build artifacts.
+  - How: excludes object files (`*.o`) and built executable names so they are not committed.
 
 - `Makefile`
-	- Use: builds the root simulation executable (`traffic`).
-	- How: compiles all C++ translation units under `src/` and links against OpenGL/X11 on Linux (or Win32 OpenGL libs on Windows).
+  - Use: builds the root simulation executable (`traffic`).
+  - How: compiles all C++ translation units under `src/` and links against OpenGL/X11 on Linux (or Win32 OpenGL libs on Windows).
 
 - `install_project_deps.sh`
-	- Use: one-command dependency installer for Ubuntu/Debian.
-	- How: installs compiler/toolchain and OpenGL/X11 related development packages via `apt`.
+  - Use: one-command dependency installer for Ubuntu/Debian.
+  - How: installs compiler/toolchain and OpenGL/X11 related development packages via `apt`.
 
 - `README.md`
-	- Use: primary technical and user documentation (this file).
+  - Use: primary technical and user documentation (this file).
 
 - `SETUP.md`
-	- Use: setup-oriented notes for environment preparation.
+  - Use: setup-oriented notes for environment preparation.
 
 - `implementation_plan.md`
-	- Use: design/roadmap notes for phase-wise features and robustness goals.
-	- How: documents intended implementation behavior (time phases, jam handling, bridge logic, etc.).
+  - Use: design/roadmap notes for phase-wise features and robustness goals.
+  - How: documents intended implementation behavior (time phases, jam handling, bridge logic, etc.).
 
 - `exampleRoad.txt`
-	- Use: map topology and object definitions loaded at startup.
-	- How: line-based DSL declaring intersections, streets, garages, and props.
+  - Use: map topology and object definitions loaded at startup.
+  - How: line-based DSL declaring intersections, streets, garages, and props.
 
 - `exampleRightOfWay.txt`
-	- Use: intersection street ordering/right-of-way mapping.
-	- How: per-intersection street list that seeds yield/priority tables.
+  - Use: intersection street ordering/right-of-way mapping.
+  - How: per-intersection street list that seeds yield/priority tables.
 
 - `exampleExam.txt`
-	- Use: exam configuration values and checkpoint positions.
-	- How: directive-based config parsed by `ExamManager`.
+  - Use: exam configuration values and checkpoint positions.
+  - How: directive-based config parsed by `ExamManager`.
 
 - `traffic` / `traffic.exe`
-	- Use: compiled executables.
-	- How: produced by build process; not source.
+  - Use: compiled executables.
+  - How: produced by build process; not source.
 
 #### Root folders
 
 - `src/`
-	- Use: authoritative simulation source code.
+  - Use: authoritative simulation source code.
 
 - `rl/`
-	- Use: optional reinforcement learning server/training scripts for traffic light decisions.
+  - Use: optional reinforcement learning server/training scripts for traffic light decisions.
 
 - `reports/`
-	- Use: generated exam results in Markdown.
+  - Use: generated exam results in Markdown.
 
 - `Phases/`
-	- Use: screenshot history of development milestones.
+  - Use: screenshot history of development milestones.
 
 - `without_traffic_light/`
-	- Use: separate experimental/legacy OpenGL+CMake sandbox variant.
+  - Use: separate experimental/legacy OpenGL+CMake sandbox variant.
 
 #### `Phases/` files
 
 - `Phases/0.1/firstPhase.png`, `Phases/0.1/screenshot_2.png`, `Phases/0.1/screenshot_3.png`, `Phases/0.1/screenshot_4.png`
-	- Use: visual snapshot set for phase 0.1.
+  - Use: visual snapshot set for phase 0.1.
 
 - `Phases/1.0/secondPhase.png` and `Phases/1.0/Screenshot from ...` images
-	- Use: visual record of phase 1.0 behavior.
+  - Use: visual record of phase 1.0 behavior.
 
 - `Phases/2.0/Screenshot from ...` images
-	- Use: visual record of phase 2.0 behavior.
+  - Use: visual record of phase 2.0 behavior.
 
 - `Phases/3.0/Screenshot from ...` images
-	- Use: visual record of phase 3.0 behavior.
+  - Use: visual record of phase 3.0 behavior.
 
 #### `rl/` files
 
 - `rl/traffic_rl_server.py`
-	- Use: TCP bridge server that accepts state from C++ and returns an action.
-	- How: parses one-line numeric state, runs PPO policy (or heuristic fallback), responds with discrete action `0..3`.
+  - Use: TCP bridge server that accepts state from C++ and returns an action.
+  - How: parses one-line numeric state, runs PPO policy (or heuristic fallback), responds with discrete action `0..3`.
 
 - `rl/train_ppo.py`
-	- Use: baseline PPO training stub.
-	- How: trains against a synthetic `gymnasium` environment and writes `ppo_traffic.zip` model files.
+  - Use: baseline PPO training stub.
+  - How: trains against a synthetic `gymnasium` environment and writes `ppo_traffic.zip` model files.
 
 #### `src/` top-level file
 
 - `src/main.cpp`
-	- Use: application entry.
-	- How: sets command-line args, prints controls, loads road and right-of-way files, and starts `Simulator`.
+  - Use: application entry.
+  - How: sets command-line args, prints controls, loads road and right-of-way files, and starts `Simulator`.
 
 #### `src/simulator/` files
 
 - `src/simulator/GameObject.h`
-	- Use: abstract/common object interface for all world entities.
-	- How: defines shared transform/state methods used polymorphically.
+  - Use: abstract/common object interface for all world entities.
+  - How: defines shared transform/state methods used polymorphically.
 
 - `src/simulator/GameObject.cpp`
-	- Use: base object behavior implementation.
-	- How: provides draw/update wrappers and common object operations.
+  - Use: base object behavior implementation.
+  - How: provides draw/update wrappers and common object operations.
 
 - `src/simulator/Simulator.h`
-	- Use: central orchestrator class declaration.
-	- How: stores camera/player/world-time/mode state and declares input-update-render pipeline methods.
+  - Use: central orchestrator class declaration.
+  - How: stores camera/player/world-time/mode state and declares input-update-render pipeline methods.
 
 - `src/simulator/Simulator.cpp`
-	- Use: main runtime behavior implementation.
-	- How: handles controls, world updates, object lifecycle, day/night transitions, camera modes, projection, telemetry.
+  - Use: main runtime behavior implementation.
+  - How: handles controls, world updates, object lifecycle, day/night transitions, camera modes, projection, telemetry.
 
 - `src/simulator/ObjectsLoader.h`
-	- Use: data loader API for road/right-of-way files.
-	- How: defines parsing entry points and callback hooks for created objects.
+  - Use: data loader API for road/right-of-way files.
+  - How: defines parsing entry points and callback hooks for created objects.
 
 - `src/simulator/ObjectsLoader.cpp`
-	- Use: parser implementation for map and right-of-way DSL files.
-	- How: tokenizes each line, instantiates typed objects, resolves cross references, configures intersections.
+  - Use: parser implementation for map and right-of-way DSL files.
+  - How: tokenizes each line, instantiates typed objects, resolves cross references, configures intersections.
 
 - `src/simulator/Road.h`
-	- Use: declarations for roads (`Driveable`), intersections (`Cross`), and signalized intersections (`CrossLights`).
-	- How: defines geometry access, lane queues, right-of-way structures, telemetry counters, and light-control state.
+  - Use: declarations for roads (`Driveable`), intersections (`Cross`), and signalized intersections (`CrossLights`).
+  - How: defines geometry access, lane queues, right-of-way structures, telemetry counters, and light-control state.
 
 - `src/simulator/Road.cpp`
-	- Use: road/intersection geometry and traffic-control logic implementation.
-	- How: draws elevated/flat road surfaces, computes free space, controls cross passing rules, handles starvation/gridlock recovery, runs RL-assisted light actions.
+  - Use: road/intersection geometry and traffic-control logic implementation.
+  - How: draws elevated/flat road surfaces, computes free space, controls cross passing rules, handles starvation/gridlock recovery, runs RL-assisted light actions.
 
 - `src/simulator/Vehicle.h`
-	- Use: base AI vehicle declaration and class variants (`Car`, `Bus`, `Bike`).
-	- How: defines movement specs, cross transition state machine, blinkers, and bridge anomaly telemetry.
+  - Use: base AI vehicle declaration and class variants (`Car`, `Bus`, `Bike`).
+  - How: defines movement specs, cross transition state machine, blinkers, and bridge anomaly telemetry.
 
 - `src/simulator/Vehicle.cpp`
-	- Use: AI vehicle behavior implementation.
-	- How: applies speed control, spacing/braking, cross registration/permission, lane transitions, and ramp pitch/height corrections.
+  - Use: AI vehicle behavior implementation.
+  - How: applies speed control, spacing/braking, cross registration/permission, lane transitions, and ramp pitch/height corrections.
 
 - `src/simulator/PlayerCar.h`
-	- Use: player-controlled vehicle class declarations.
-	- How: defines input flags, camera helpers, and subclasses for player bus and bike.
+  - Use: player-controlled vehicle class declarations.
+  - How: defines input flags, camera helpers, and subclasses for player bus and bike.
 
 - `src/simulator/PlayerCar.cpp`
-	- Use: player driving and rendering implementation.
-	- How: applies acceleration/braking/steering dynamics, vehicle-specific tuning, and third-person camera offsets.
+  - Use: player driving and rendering implementation.
+  - How: applies acceleration/braking/steering dynamics, vehicle-specific tuning, and third-person camera offsets.
 
 - `src/simulator/Garage.h`
-	- Use: vehicle spawn/deletion source declaration.
-	- How: defines garage timing, limits, gate animation states, and vehicle factory method interface.
+  - Use: vehicle spawn/deletion source declaration.
+  - How: defines garage timing, limits, gate animation states, and vehicle factory method interface.
 
 - `src/simulator/Garage.cpp`
-	- Use: garage logic and procedural building visuals.
-	- How: modulates spawn rates by day phase, manages queue/gate behavior, and draws style-varied buildings/windows.
+  - Use: garage logic and procedural building visuals.
+  - How: modulates spawn rates by day phase, manages queue/gate behavior, and draws style-varied buildings/windows.
 
 - `src/simulator/Environment.h`
-	- Use: decorative prop declarations (tree, lamppost, bench, dustbin).
-	- How: defines per-prop draw/update interfaces.
+  - Use: decorative prop declarations (tree, lamppost, bench, dustbin).
+  - How: defines per-prop draw/update interfaces.
 
 - `src/simulator/Environment.cpp`
-	- Use: decorative prop drawing implementation.
-	- How: procedurally varies tree/bench look and toggles lamp glow by day phase.
+  - Use: decorative prop drawing implementation.
+  - How: procedurally varies tree/bench look and toggles lamp glow by day phase.
 
 - `src/simulator/ModeManager.h`
-	- Use: mode state declaration (`BASIC_DRIVING`, `TRAINING`, `EXAM`).
-	- How: exposes mode switching and access to training/exam managers.
+  - Use: mode state declaration (`BASIC_DRIVING`, `TRAINING`, `EXAM`).
+  - How: exposes mode switching and access to training/exam managers.
 
 - `src/simulator/ModeManager.cpp`
-	- Use: mode transition implementation.
-	- How: cycles modes, resets managers appropriately, and triggers exam loading/start.
+  - Use: mode transition implementation.
+  - How: cycles modes, resets managers appropriately, and triggers exam loading/start.
 
 - `src/simulator/TrainingManager.h`
-	- Use: training mode rules declaration.
-	- How: defines score/warning/objective state, lesson types, and rule-check methods.
+  - Use: training mode rules declaration.
+  - How: defines score/warning/objective state, lesson types, and rule-check methods.
 
 - `src/simulator/TrainingManager.cpp`
-	- Use: training mode rule logic implementation.
-	- How: checks speeding, wrong-way, yield/light/stop behavior, quiet-zone horn penalties, and parking challenge completion.
+  - Use: training mode rule logic implementation.
+  - How: checks speeding, wrong-way, yield/light/stop behavior, quiet-zone horn penalties, and parking challenge completion.
 
 - `src/simulator/ExamManager.h`
-	- Use: exam mode declaration.
-	- How: defines exam state, checkpoints, scoring thresholds, and report API.
+  - Use: exam mode declaration.
+  - How: defines exam state, checkpoints, scoring thresholds, and report API.
 
 - `src/simulator/ExamManager.cpp`
-	- Use: exam lifecycle implementation.
-	- How: parses exam config, tracks timer/checkpoints/score, records violations, and exports pass/fail report markdown.
+  - Use: exam lifecycle implementation.
+  - How: parses exam config, tracks timer/checkpoints/score, records violations, and exports pass/fail report markdown.
 
 - `src/simulator/RLTrafficClient.h`
-	- Use: RL traffic-light client declaration.
-	- How: defines socket connection, request/response API, and lifecycle methods.
+  - Use: RL traffic-light client declaration.
+  - How: defines socket connection, request/response API, and lifecycle methods.
 
 - `src/simulator/RLTrafficClient.cpp`
-	- Use: RL client networking implementation.
-	- How: on Linux, sends state over TCP and parses action replies; on Windows, returns fallback invalid action.
+  - Use: RL client networking implementation.
+  - How: on Linux, sends state over TCP and parses action replies; on Windows, returns fallback invalid action.
 
 - `src/simulator/RuleManager.h`
-	- Use: legacy/parallel rule-manager declaration.
-	- How: mirrors many checks now handled by `TrainingManager`.
+  - Use: legacy/parallel rule-manager declaration.
+  - How: mirrors many checks now handled by `TrainingManager`.
 
 - `src/simulator/RuleManager.cpp`
-	- Use: legacy/parallel rule-manager implementation.
-	- How: applies score penalties for speed, wrong-way, yield/stop/light violations; generally superseded by training/exam flow.
+  - Use: legacy/parallel rule-manager implementation.
+  - How: applies score penalties for speed, wrong-way, yield/stop/light violations; generally superseded by training/exam flow.
 
 #### `src/simulator/EngineCore/` files
 
 - `src/simulator/EngineCore/EngineCore.h`
-	- Use: platform abstraction selector header.
-	- How: includes Linux or Windows backend based on compile target.
+  - Use: platform abstraction selector header.
+  - How: includes Linux or Windows backend based on compile target.
 
 - `src/simulator/EngineCore/EngineCoreBase.h`
-	- Use: core engine-loop abstraction declaration.
-	- How: defines virtual hooks for input/update/render and timing constraints.
+  - Use: core engine-loop abstraction declaration.
+  - How: defines virtual hooks for input/update/render and timing constraints.
 
 - `src/simulator/EngineCore/EngineCoreBase.cpp`
-	- Use: frame loop implementation.
-	- How: executes event polling, computes delta, applies `timeScale`, performs `singleUpdate` and repeated `update` steps, then redraw/swap.
+  - Use: frame loop implementation.
+  - How: executes event polling, computes delta, applies `timeScale`, performs `singleUpdate` and repeated `update` steps, then redraw/swap.
 
 - `src/simulator/EngineCore/EngineCoreLinux.h`
-	- Use: Linux backend declaration.
-	- How: stores X11/GLX context data and event state.
+  - Use: Linux backend declaration.
+  - How: stores X11/GLX context data and event state.
 
 - `src/simulator/EngineCore/EngineCoreLinux.cpp`
-	- Use: Linux backend implementation.
-	- How: creates X11 window/GL context, translates keyboard/mouse events, maintains held-key map, calls simulator callbacks.
+  - Use: Linux backend implementation.
+  - How: creates X11 window/GL context, translates keyboard/mouse events, maintains held-key map, calls simulator callbacks.
 
 - `src/simulator/EngineCore/EngineCoreWindows.h`
-	- Use: Windows backend declaration.
-	- How: declares Win32/OpenGL window and input management methods.
+  - Use: Windows backend declaration.
+  - How: declares Win32/OpenGL window and input management methods.
 
 - `src/simulator/EngineCore/EngineCoreWindows.cpp`
-	- Use: Windows backend implementation.
-	- How: creates Win32 window/context, polls keyboard state, dispatches events to simulator hooks.
+  - Use: Windows backend implementation.
+  - How: creates Win32 window/context, polls keyboard state, dispatches events to simulator hooks.
 
 - `src/simulator/EngineCore/Graphics.h`
-	- Use: rendering helper API declaration.
-	- How: wraps common OpenGL immediate-mode operations (cube/quads/transform/color/normal helpers).
+  - Use: rendering helper API declaration.
+  - How: wraps common OpenGL immediate-mode operations (cube/quads/transform/color/normal helpers).
 
 - `src/simulator/EngineCore/Graphics.cpp`
-	- Use: rendering helper implementation.
-	- How: provides utility draw methods and interpolation helpers used by object draw code.
+  - Use: rendering helper implementation.
+  - How: provides utility draw methods and interpolation helpers used by object draw code.
 
 - `src/simulator/EngineCore/Vec3.h`
-	- Use: 3D vector math type declaration.
-	- How: defines vector operations, interpolation, distances, normalization, cross product utilities.
+  - Use: 3D vector math type declaration.
+  - How: defines vector operations, interpolation, distances, normalization, cross product utilities.
 
 - `src/simulator/EngineCore/Vec3.cpp`
-	- Use: vector math implementation.
-	- How: implements all geometric arithmetic used by roads, vehicles, cameras, and intersections.
+  - Use: vector math implementation.
+  - How: implements all geometric arithmetic used by roads, vehicles, cameras, and intersections.
 
 - `src/simulator/EngineCore/Colors.h`
-	- Use: color utility declarations.
-	- How: provides helper methods (for example random color selection) for visuals.
+  - Use: color utility declarations.
+  - How: provides helper methods (for example random color selection) for visuals.
 
 - `src/simulator/EngineCore/Colors.cpp`
-	- Use: color helper implementation.
-	- How: generates/returns color constants used in vehicle/building drawing.
+  - Use: color helper implementation.
+  - How: generates/returns color constants used in vehicle/building drawing.
 
 - `src/simulator/EngineCore/ExceptionClass.h`
-	- Use: custom exception type declaration.
-	- How: defines lightweight error wrapper used by parser/loader systems.
+  - Use: custom exception type declaration.
+  - How: defines lightweight error wrapper used by parser/loader systems.
 
 - `src/simulator/EngineCore/ExceptionClass.cpp`
-	- Use: custom exception implementation.
-	- How: stores/returns error messages for diagnostics.
+  - Use: custom exception implementation.
+  - How: stores/returns error messages for diagnostics.
 
 #### `without_traffic_light/` files (separate sandbox variant)
 
 - `without_traffic_light/CMakeLists.txt`
-	- Use: CMake build definition for the alternate simulation variant.
+  - Use: CMake build definition for the alternate simulation variant.
 
 - `without_traffic_light/src/main.cpp`
-	- Use: alternate app entry for the sandbox.
+  - Use: alternate app entry for the sandbox.
 
 - `without_traffic_light/src/Mesh.h`
-	- Use: mesh container/attribute layout declarations for modern OpenGL path.
+  - Use: mesh container/attribute layout declarations for modern OpenGL path.
 
 - `without_traffic_light/src/Model.h`
-	- Use: model loading abstraction (Assimp-based workflow).
+  - Use: model loading abstraction (Assimp-based workflow).
 
 - `without_traffic_light/src/Shader.h`
-	- Use: GLSL shader compile/link/use wrapper.
+  - Use: GLSL shader compile/link/use wrapper.
 
 - `without_traffic_light/shaders/vertex.glsl`
-	- Use: vertex transformation and per-vertex stage logic.
+  - Use: vertex transformation and per-vertex stage logic.
 
 - `without_traffic_light/shaders/fragment.glsl`
-	- Use: pixel color output stage logic.
+  - Use: pixel color output stage logic.
 
 #### Generated/runtime files and folders
 
 - `src/simulator/*.o`, `src/simulator/EngineCore/*.o`
-	- Use: object files produced during compilation.
+  - Use: object files produced during compilation.
 
 - `without_traffic_light/build/` and its nested files (`CMakeCache.txt`, generated `Makefile`, dependency sub-build trees, etc.)
-	- Use: CMake-generated build workspace and third-party dependency build outputs.
+  - Use: CMake-generated build workspace and third-party dependency build outputs.
 
 - `reports/exam_*.md`
-	- Use: per-run exam result records generated by `ExamManager`.
+  - Use: per-run exam result records generated by `ExamManager`.
 
 ## 4. Build and Runtime Requirements
 
