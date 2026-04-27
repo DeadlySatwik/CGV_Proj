@@ -44,11 +44,14 @@ private:
     long eventMask;
     bool heldKeys[256];
 
+    static GLuint fontListBase;
+
     static int argc;
     static char **argv;
 
 public:
     static void SetCmdArgs(int argC, char **argV);
+    static GLuint getFontListBase() { return fontListBase; }
 };
 
 #endif // _WIN32

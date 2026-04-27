@@ -7,6 +7,7 @@ using namespace std;
 
 int EngineCore::argc = 0;
 char **EngineCore::argv = NULL;
+GLuint EngineCore::fontListBase = 0;
 
 void EngineCore::SetCmdArgs(int argC, char **argV)
 {
@@ -96,6 +97,18 @@ int EngineCore::init()
 
     for (int i = 0; i < 256; i++)
         heldKeys[i] = false;
+
+    // Initialize font
+    fontListBase = glGenLists(256);
+    XFontStruct* fontInfo = XLoadQueryFont(dpy, "fixed");
+    if (fontInfo == NULL) {
+        fontInfo = XLoadQueryFont(dpy, "9x15"); // fallback
+    }
+    
+    if (fontInfo != NULL) {
+        glXUseXFont(fontInfo->fid, 32, 128, fontListBase + 32);
+        XFreeFont(dpy, fontInfo);
+    }
 
     return 0;
 }
