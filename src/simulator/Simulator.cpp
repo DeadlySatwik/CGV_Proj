@@ -640,6 +640,10 @@ void Simulator::singleUpdate(const float delta)
         cameraMove(delta);
     }
 
+    // Evaluate rules for the active player vehicle
+    Driveable* currentRoad = getRoadAt(activePlayerVeh->getPos());
+    ruleManager.update(activePlayerVeh, objects, delta, currentRoad);
+
     updateWorldTime(delta); // advance world clock
 }
 
@@ -827,6 +831,42 @@ bool Simulator::sampleRoadHeight(const Vec3 &testPos, float &outHeight) const
     return false;
 }
 
+Driveable* Simulator::getRoadAt(const Vec3& testPos) const
+{
+    const float roadHW = 0.4f;
+    float bestDistance = 1e9f;
+    Driveable* bestRoad = nullptr;
+
+    for (const auto &obj : objects)
+    {
+        Driveable *road = dynamic_cast<Driveable *>(obj);
+        if (road)
+        {
+            Vec3 roadDir = road->getDirection();
+            Vec3 roadNorm = road->getNormal();
+
+            Vec3 begP = road->getJointPoint(true);
+            Vec3 endP = road->getJointPoint(false);
+            float roadLen = Vec3::dst(begP, endP);
+
+            Vec3 diff = testPos - begP;
+            float along = diff.x * roadDir.x + diff.z * roadDir.z;
+            float across = diff.x * roadNorm.x + diff.z * roadNorm.z;
+
+            if (along >= -0.2f && along <= roadLen + 0.2f && fabs(across) <= roadHW + 0.06f)
+            {
+                float dist = fabs(across);
+                if (!bestRoad || dist < bestDistance)
+                {
+                    bestDistance = dist;
+                    bestRoad = road;
+                }
+            }
+        }
+    }
+    return bestRoad;
+}
+
 bool Simulator::isPlayerBlocked(const Vec3 &testPos) const
 {
     const float playerRadius = 0.13f;
@@ -865,14 +905,19 @@ void Simulator::printTelemetry() const
 {
     int h = (int)worldTime;
     int m = (int)((worldTime - h) * 60);
+    
+    std::string warnStr = ruleManager.getCurrentWarning();
+    if (!warnStr.empty()) {
+        warnStr = " | WARNING: " + warnStr;
+    }
+
     cout << "[" << (h < 10 ? "0" : "") << h << ":" << (m < 10 ? "0" : "") << m << "] "
          << phaseNames[dayPhase]
-         << " | ActiveVehicles: " << getActiveVehicleCount()
-         << " | Objects: " << objects.size()
-         << " | Camera: " << (thirdPersonMode ? "3rd" : "Free")
-         << " | JamRecoveries: " << Cross::getTelemetryJamRecoveries()
-         << " | ForcedPasses: " << Cross::getTelemetryForcedPasses()
-         << " | RLFallbacks: " << Cross::getTelemetryRLFallbacks()
-         << " | BridgeAnomalies: " << Vehicle::getBridgeAnomalyCount()
+         << " | Score: " << ruleManager.getScore()
+         << " | " << ruleManager.getLastViolation()
+         << warnStr
+         << " | Active: " << getActiveVehicleCount()
+         << " | Objs: " << objects.size()
+         << " | Cam: " << (thirdPersonMode ? "3rd" : "Free")
          << endl;
 }

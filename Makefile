@@ -34,6 +34,7 @@ SRCS+=src/simulator/Vehicle.cpp
 SRCS+=src/simulator/Garage.cpp
 SRCS+=src/simulator/Environment.cpp
 SRCS+=src/simulator/PlayerCar.cpp
+SRCS+=src/simulator/RuleManager.cpp
 
 OBJS=$(subst .cpp,.o,$(SRCS))
 

@@ -14,8 +14,10 @@
 #include "EngineCore/Graphics.h"
 #include "ObjectsLoader.h"
 #include "PlayerCar.h"
+#include "RuleManager.h"
 
 class GameObject;
+class Driveable;
 
 class Simulator : private EngineCore, private Graphics, public ObjectsLoader
 {
@@ -132,6 +134,9 @@ private:
 
     static const char *phaseNames[PHASE_COUNT];
     static float phaseBoundaries[PHASE_COUNT + 1];
+
+    RuleManager ruleManager;
+    Driveable* getRoadAt(const Vec3& pos) const;
 };
 
 #endif // SIMULTOR_H
