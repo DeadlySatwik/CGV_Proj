@@ -20,7 +20,7 @@ PlayerCar::PlayerCar(Vec3 startPos)
     heading = 0.0f; // facing +X initially
     acceleration = 2.8f;
     maxSpeed = 3.4f;
-    turnSpeed = 115.0f; // degrees per second at low speed
+    turnSpeed = 84.0f; // degrees per second at low speed
     friction = 1.45f;
 
     oldPos = pos;
@@ -67,13 +67,31 @@ void PlayerCar::handleInput(unsigned int inputMap, const float delta)
 
     // Steering response scales with speed for stability.
     float speedAbs = fabs(speed);
-    if (speedAbs > 0.02f)
+    if (speedAbs > 0.005f)
     {
         float steerFactor = 1.0f;
         if (speedAbs > 1.2f)
             steerFactor = 1.2f / speedAbs;
-        if (steerFactor < 0.35f)
-            steerFactor = 0.35f;
+
+        // Tighten turning at low speed (parking/city cornering) while
+        // keeping steering calm at higher speeds.
+        float lowSpeedBoost = 1.0f;
+        if (speedAbs < 1.0f)
+        {
+            lowSpeedBoost += (1.0f - speedAbs) * 1.4f;
+            if (speedAbs < 0.35f)
+                lowSpeedBoost += 0.45f;
+
+            if (lowSpeedBoost > 2.5f)
+                lowSpeedBoost = 2.5f;
+        }
+
+        steerFactor *= lowSpeedBoost;
+
+        if (steerFactor < 0.24f)
+            steerFactor = 0.24f;
+        if (steerFactor > 2.5f)
+            steerFactor = 2.5f;
 
         float signedSteer = 0.0f;
         if (inputMap & INPUT_STEER_LEFT)

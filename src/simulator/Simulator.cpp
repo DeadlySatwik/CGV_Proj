@@ -419,30 +419,22 @@ Simulator::Simulator() : maxNumberOfObjects(0), CAMERA_VELOCITY(3)
 
 void Simulator::keyHeld(char k)
 {
-    // In 3rd person mode, arrow keys / IJKL drive the player car
+    // In 3rd person mode, only the arrow keys drive the player car
     if (thirdPersonMode)
     {
-        // Arrow keys come as VK codes (Windows): Up=38, Down=40, Left=37, Right=39
         switch (k)
         {
         case 38: // VK_UP
-        case 'i':
             playerInputMap |= PlayerCar::INPUT_ACCEL;
             break;
         case 40: // VK_DOWN
-        case 'k':
             playerInputMap |= PlayerCar::INPUT_BRAKE;
             break;
         case 37: // VK_LEFT
-        case 'j':
             playerInputMap |= PlayerCar::INPUT_STEER_LEFT;
             break;
         case 39: // VK_RIGHT
-        case 'l':
             playerInputMap |= PlayerCar::INPUT_STEER_RIGHT;
-            break;
-        case 'h':
-            playerInputMap |= PlayerCar::INPUT_HORN;
             break;
         }
         return; // Don't move free camera while driving

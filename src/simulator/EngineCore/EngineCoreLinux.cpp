@@ -128,6 +128,20 @@ void EngineCore::checkEvents()
 {
     XEvent event;
 
+    auto translateKey = [](KeySym keysym, char ascii) -> int {
+        if (ascii != 0)
+            return (unsigned char)ascii;
+
+        switch (keysym)
+        {
+            case XK_Up:    return 38;
+            case XK_Down:  return 40;
+            case XK_Left:  return 37;
+            case XK_Right: return 39;
+            default:       return 0;
+        }
+    };
+
     while (XPending(dpy))
     {
         XCheckWindowEvent(dpy, win, eventMask, &event);
@@ -140,8 +154,13 @@ void EngineCore::checkEvents()
                 char       buffer[4];
                 XLookupString((XKeyEvent *)&event, buffer, 4, &keysym, NULL);
 
-                keyPressed(buffer[0]);
-                heldKeys[(unsigned int)buffer[0]] = true;
+                int keyCode = translateKey(keysym, buffer[0]);
+
+                if (keyCode != 0)
+                {
+                    keyPressed((char)keyCode);
+                    heldKeys[(unsigned int)keyCode] = true;
+                }
 
                 break;
             }
@@ -152,9 +171,14 @@ void EngineCore::checkEvents()
                 char       buffer[4];
                 XLookupString((XKeyEvent *)&event, buffer, 4, &keysym, NULL);
 
-                heldKeys[(unsigned int)buffer[0]] = false;
-                if (buffer[0] >= 'a' && buffer[0] <= 'z') heldKeys[(unsigned int)buffer[0] - 32] = false;
-                if (buffer[0] >= 'A' && buffer[0] <= 'Z') heldKeys[(unsigned int)buffer[0] + 32] = false;
+                int keyCode = translateKey(keysym, buffer[0]);
+
+                if (keyCode != 0)
+                {
+                    heldKeys[(unsigned int)keyCode] = false;
+                    if (keyCode >= 'a' && keyCode <= 'z') heldKeys[(unsigned int)keyCode - 32] = false;
+                    if (keyCode >= 'A' && keyCode <= 'Z') heldKeys[(unsigned int)keyCode + 32] = false;
+                }
                 break;
             }
 
