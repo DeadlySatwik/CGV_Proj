@@ -3,4 +3,5 @@
 *.layout
 *.cbp
 bin/
-obj/
+obj/traffic
+traffic
