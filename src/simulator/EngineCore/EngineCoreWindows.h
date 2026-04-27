@@ -34,6 +34,7 @@ private:
 
     HDC hDC;
     HWND hwnd;
+    static GLuint fontListBase;  // bitmap font display list base
 
     void enableOpenGL(HWND hwnd, HDC*, HGLRC*);
     void disableOpenGL(HWND, HDC, HGLRC);
@@ -47,6 +48,7 @@ private:
 
 public:
     static void SetCmdArgs(int argC, char **argV) {};
+    static GLuint getFontListBase() { return fontListBase; }
 };
 
 #endif // _WIN32

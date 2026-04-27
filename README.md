@@ -6,6 +6,8 @@ A C++11 OpenGL city traffic simulator with:
 - AI traffic with right-of-way and traffic-light control
 - Player-driveable car, bus, and bike
 - Training and exam modes with scoring and reports
+- Pedestrian crossing system with zebra crossings, signals, and rule enforcement
+- In-game HUD overlay with controls, status, and score display
 - Day/night cycle with dynamic lighting and fog
 - Elevation-aware road segments and bridge transitions
 - Optional RL traffic-light policy server integration
@@ -27,10 +29,12 @@ This README is the authoritative usage and architecture guide for the current co
 11. Map, Right-of-Way, and Exam File Formats
 12. RL Integration
 13. Runtime Outputs and Reports
-14. Tuning Guide
-15. Known Limitations
-16. Troubleshooting
-17. License and Credits
+14. Pedestrian Crossing System
+15. In-Game HUD Overlay
+16. Tuning Guide
+17. Known Limitations
+18. Troubleshooting
+19. License and Credits
 
 ## 1. Project Goals
 
@@ -69,6 +73,13 @@ It targets practical simulation behavior rather than photorealism.
 
 - Training mode with penalties/warnings/objectives
 - Exam mode with checkpoints, timer, pass threshold, and report export
+- Pedestrian safety: zebra crossings, pedestrian signals, yield-to-pedestrian rules
+
+### In-Game HUD
+
+- Semi-transparent controls panel at the bottom of the screen
+- Live status display: mode, camera, time, score, warnings, violations
+- Toggle on/off with `G` key
 
 ### Time and Atmosphere
 
@@ -97,6 +108,10 @@ Top-level important paths:
 - `src/simulator/TrainingManager.*`: training rules/objectives
 - `src/simulator/ExamManager.*`: exam lifecycle and report generation
 - `src/simulator/ModeManager.*`: BASIC/TRAINING/EXAM mode switching
+- `src/simulator/CrosswalkZone.*`: zebra crossing geometry and rendering
+- `src/simulator/PedestrianSignal.*`: pedestrian signal state machine
+- `src/simulator/Pedestrian.*`: pedestrian actor and state machine
+- `src/simulator/PedestrianManager.*`: pedestrian system orchestrator
 - `src/simulator/EngineCore/`: platform loop, input, graphics helpers
 - `exampleRoad.txt`: map topology and object definitions
 - `exampleRightOfWay.txt`: intersection ordering and right-of-way mapping
@@ -278,11 +293,11 @@ Note on generated artifacts:
 
 - `src/simulator/TrainingManager.h`
   - Use: training mode rules declaration.
-  - How: defines score/warning/objective state, lesson types, and rule-check methods.
+  - How: defines score/warning/objective state, lesson types, and rule-check methods including pedestrian crossing rules.
 
 - `src/simulator/TrainingManager.cpp`
   - Use: training mode rule logic implementation.
-  - How: checks speeding, wrong-way, yield/light/stop behavior, quiet-zone horn penalties, and parking challenge completion.
+  - How: checks speeding, wrong-way, yield/light/stop behavior, quiet-zone horn penalties, parking challenge completion, and pedestrian yield violations.
 
 - `src/simulator/ExamManager.h`
   - Use: exam mode declaration.
@@ -291,6 +306,38 @@ Note on generated artifacts:
 - `src/simulator/ExamManager.cpp`
   - Use: exam lifecycle implementation.
   - How: parses exam config, tracks timer/checkpoints/score, records violations, and exports pass/fail report markdown.
+
+- `src/simulator/CrosswalkZone.h`
+  - Use: zebra crossing geometry and zone definitions.
+  - How: defines crossing, approach, and stop zones on road segments. Renders white zebra stripes and boundary lines.
+
+- `src/simulator/CrosswalkZone.cpp`
+  - Use: crosswalk zone implementation.
+  - How: computes geometry from road parametric position, implements hit-tests for crossing/approach/stop zones, draws zebra stripes using raw OpenGL.
+
+- `src/simulator/PedestrianSignal.h`
+  - Use: pedestrian crossing signal state machine declaration.
+  - How: defines WALK/DONT_WALK/FLASHING cycle with configurable durations and phase offsets.
+
+- `src/simulator/PedestrianSignal.cpp`
+  - Use: signal cycle implementation.
+  - How: advances through DONT_WALK→WALK→FLASHING cycle, supports phase offset for staggered crossings.
+
+- `src/simulator/Pedestrian.h`
+  - Use: pedestrian actor declaration.
+  - How: defines 5-state machine (SPAWNED→WAITING→CROSSING→CLEARED→DESPAWNED) and procedural humanoid rendering.
+
+- `src/simulator/Pedestrian.cpp`
+  - Use: pedestrian behavior implementation.
+  - How: linear crossing movement, walking animation with arm/leg swing, randomized appearance from color palettes.
+
+- `src/simulator/PedestrianManager.h`
+  - Use: pedestrian system orchestrator declaration.
+  - How: manages crosswalk zones, signals, and pedestrian lifecycle. Provides rule-enforcement query API.
+
+- `src/simulator/PedestrianManager.cpp`
+  - Use: pedestrian system implementation.
+  - How: initializes 4 crosswalks on designated streets, manages spawn/despawn lifecycle, draws signal posts, answers rule queries from TrainingManager.
 
 - `src/simulator/RLTrafficClient.h`
   - Use: RL traffic-light client declaration.
@@ -499,6 +546,7 @@ In third-person driving mode:
 - `P`: attempt parking completion (only in PARKING lesson)
 - `I`: print telemetry snapshot
 - `O`: toggle projection (Perspective/Orthographic)
+- `G`: toggle in-game HUD overlay on/off
 
 ## 7. Simulation Modes
 
@@ -518,6 +566,9 @@ Uses `TrainingManager` checks:
 - Yield/stop-sign/light compliance checks
 - Quiet zone lesson with anti-honking rule
 - Parking lesson with target marker and completion action
+- Pedestrian safety: yield-to-pedestrian and crosswalk disregard violations
+
+Training lessons cycle with `V`: General Driving → Quiet Zone → Parking → Pedestrian Safety → (repeat)
 
 ### EXAM
 
@@ -528,6 +579,7 @@ Uses `ExamManager` on top of training signals:
 - Ordered checkpoints
 - Final PASS/FAIL result
 - Markdown report written to `reports/exam_YYYYMMDD_HHMMSS.md`
+- Pedestrian violations are counted toward the exam score
 
 ## 8. Driving Model
 
@@ -741,7 +793,77 @@ Exam reports:
 - Generated in `reports/`
 - Include result, score, time usage, checkpoint progress, and violations
 
-## 14. Tuning Guide
+## 14. Pedestrian Crossing System
+
+The simulator includes a pedestrian safety training layer with zebra crossings, pedestrian signals, and pedestrian actors.
+
+### Crosswalk Locations
+
+Four zebra crossings are placed on designated streets:
+
+| ID | Street | World Position (x, z) | Notes |
+|----|--------|----------------------|-------|
+| CW1 | HA3 | (-2, 8) | Horizontal street, top grid |
+| CW2 | HB5 | (6, 5) | Horizontal street, mid grid |
+| CW3 | HD2 | (-6, -5) | Horizontal street, lower grid |
+| CW4 | VB3 | (-4, 2.5) | Vertical street, left-center |
+
+Crosswalks are always visually present (zebra stripes on road) in all modes.
+
+### Pedestrian Signals
+
+Each crosswalk has a signal post with three states:
+
+- **WALK** (green): pedestrians may begin crossing
+- **FLASHING** (blinking yellow): pedestrians should finish, not start
+- **DONT_WALK** (red): pedestrians must not enter
+
+Cycle: DONT_WALK (12s) → WALK (8s) → FLASHING (3s) → repeat. Crossings are phase-offset so they don't all synchronize.
+
+### Pedestrian Actors
+
+Pedestrians spawn at sidewalk edges during WALK phase and cross in a straight line:
+
+- State machine: SPAWNED → WAITING → CROSSING → CLEARED → DESPAWNED
+- Walking animation with arm/leg swing
+- Randomized appearance (8 shirt colors × 4 pants colors)
+- Max 2 active pedestrians per crossing
+- Only active in Training and Exam modes
+
+### Violations
+
+| Violation | Penalty | Trigger |
+|-----------|---------|---------|
+| Failure to Yield to Pedestrian | -20 | Driving through crosswalk while pedestrian is crossing |
+| Crosswalk Disregard | -15 | Driving through crosswalk while pedestrian has right-of-way |
+
+A 0.5-second grace period prevents instant penalties when a pedestrian starts crossing while the player is already in the zone.
+
+### Mode Behavior
+
+- **Basic Driving**: zebra stripes visible, no pedestrians, no rules
+- **Training**: full system active — crosswalks, signals, pedestrians, violations
+- **Exam**: same as training, violations affect exam score
+
+## 15. In-Game HUD Overlay
+
+A semi-transparent dark panel at the bottom of the screen shows:
+
+### Layout (3 columns)
+
+| Movement | Modes & Lessons | Status |
+|----------|----------------|--------|
+| W/A/S/D, Arrow keys, F, etc. | R, V, P, O, etc. | Mode, Camera, Time |
+| | | Score, Warnings, Violations |
+
+### Features
+
+- Semi-transparent black background (65% opacity) with blue accent border
+- Color-coded text: blue headers, white controls, green mode, gold score, red warnings, orange violations
+- Live updates every frame
+- Toggle with `G` key
+
+## 16. Tuning Guide
 
 Common tuning files and parameters:
 
@@ -760,14 +882,14 @@ Recommended process:
 2. Rebuild and test in both free roads and tight intersections
 3. Confirm no mode regressions (BASIC/TRAINING/EXAM)
 
-## 15. Known Limitations
+## 17. Known Limitations
 
 - Rendering is fixed-function and not physically-based
 - AI routing is local/intersection-driven, not global shortest-path navigation
 - Linux key handling relies on X11 translation logic
 - Root simulator build uses direct Makefile flow; separate folders may have different build systems and assumptions
 
-## 16. Troubleshooting
+## 18. Troubleshooting
 
 ### Build fails on missing GL/X11 symbols
 
@@ -794,7 +916,7 @@ Recommended process:
 - Ensure `reports/` is writable
 - Confirm exam reached pass/fail terminal state
 
-## 17. License and Credits
+## 19. License and Credits
 
 - Copyright (C) DeadlyS 2026
 

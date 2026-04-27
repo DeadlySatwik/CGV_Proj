@@ -5,6 +5,8 @@
 #include <vector>
 #include "EngineCore/Vec3.h"
 
+class PedestrianManager;
+
 // Forward declarations
 class PlayerCar;
 class GameObject;
@@ -17,7 +19,8 @@ public:
     enum LessonType {
         LESSON_GENERAL_DRIVING,
         LESSON_QUIET_ZONE,
-        LESSON_PARKING
+        LESSON_PARKING,
+        LESSON_PEDESTRIAN_SAFETY
     };
 
     TrainingManager();
@@ -28,6 +31,9 @@ public:
     void setLesson(LessonType lesson) { activeLesson = lesson; }
     void cycleLesson();
     LessonType getLesson() const { return activeLesson; }
+
+    // Pedestrian manager link
+    void setPedestrianManager(PedestrianManager* pm) { pedManager = pm; }
 
     void draw() const;
     void tryPark(PlayerCar* player);
@@ -77,6 +83,25 @@ private:
     Vec3 quietZoneCenter;
     float quietZoneRadius;
 
+    // Pedestrian crossing state
+    PedestrianManager* pedManager;
+    std::string lastCrosswalkChecked;
+    float pedestrianGraceTimer;
+    bool playerWasInCrosswalk;
+
+    // Honk cooldown (prevent spam penalties)
+    float honkCooldown;
+
+    // In-game log buffer (polled by Simulator each frame)
+    std::vector<std::string> pendingLogs;
+
+public:
+    /// Pop all pending log entries (clears the buffer)
+    std::vector<std::string> popLogs();
+
+private:
+    void pushLog(const std::string& msg);
+
     void applyPenalty(int points, const std::string& reason);
     void addScore(int points, const std::string& reason);
     void setWarning(const std::string& warningMsg);
@@ -87,6 +112,7 @@ private:
     void checkIntersectionRules(PlayerCar* player, const std::vector<GameObject*>& objects, float delta);
     void checkQuietZone(PlayerCar* player, float delta);
     void checkParking(PlayerCar* player, float delta);
+    void checkPedestrianRules(PlayerCar* player, float delta);
 };
 
 #endif // TRAININGMANAGER_H

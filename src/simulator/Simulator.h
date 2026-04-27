@@ -15,6 +15,7 @@
 #include "ObjectsLoader.h"
 #include "PlayerCar.h"
 #include "ModeManager.h"
+#include "PedestrianManager.h"
 
 class GameObject;
 class Driveable;
@@ -136,7 +137,21 @@ private:
     static float phaseBoundaries[PHASE_COUNT + 1];
 
     ModeManager modeManager;
+    PedestrianManager pedestrianManager;
     Driveable* getRoadAt(const Vec3& pos) const;
+
+    // HUD overlay
+    bool showHUD;
+    void drawHUD();
+
+    // Event log panel (top-left)
+    bool showLog;
+    std::vector<std::string> gameLog;  // ring buffer, max 12
+    void addLog(const std::string& msg);
+    void drawLogPanel(GLuint fontBase);
+
+    // Mode info panel (top-right)
+    void drawModeInfoPanel(GLuint fontBase);
 };
 
 #endif // SIMULTOR_H

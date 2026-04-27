@@ -63,7 +63,7 @@ void PlayerCar::handleInput(unsigned int inputMap, const float delta)
 
     if (isHonking && !wasHonking)
     {
-        cout << "\a\n*** HONK! ***" << endl;
+        cout << "\n*** HONK! ***" << endl;
     }
 
     // Steering response scales with speed for stability.

@@ -7,6 +7,7 @@
 #include "EngineCoreWindows.h"
 
 EngineCore *EngineCore::instance = nullptr;
+GLuint EngineCore::fontListBase = 0;
 
 int EngineCore::init()
 {
@@ -61,6 +62,26 @@ int EngineCore::init()
     glDepthFunc(GL_LESS);
     glClearDepth(1.0);
     initLight();
+
+    // Initialize bitmap font for HUD text rendering
+    fontListBase = glGenLists(128);
+    HFONT hFont = CreateFont(
+        -14,            // height (negative = character height)
+        0,              // width (auto)
+        0, 0,           // escapement, orientation
+        FW_NORMAL,      // weight
+        FALSE, FALSE, FALSE,  // italic, underline, strikeout
+        ANSI_CHARSET,
+        OUT_TT_PRECIS,
+        CLIP_DEFAULT_PRECIS,
+        ANTIALIASED_QUALITY,
+        FF_DONTCARE | DEFAULT_PITCH,
+        "Consolas"      // monospace font for clean alignment
+    );
+    HFONT hOldFont = (HFONT)SelectObject(hDC, hFont);
+    wglUseFontBitmaps(hDC, 0, 128, fontListBase);
+    SelectObject(hDC, hOldFont);
+    DeleteObject(hFont);
 
     return 0;
 }

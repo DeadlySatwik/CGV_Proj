@@ -21,6 +21,11 @@ ExamManager::ExamManager()
     timeLimit = 180.0f;
     passScore = 70;
     startScore = 100;
+    timeRemaining = 0.0f;
+    currentScore = 0;
+    lastObservedScore = 0;
+    currentCheckpointIndex = 0;
+    totalViolations = 0;
 }
 
 void ExamManager::loadExam(const std::string& filename)
@@ -34,9 +39,9 @@ void ExamManager::loadExam(const std::string& filename)
         timeLimit = 180.0f;
         passScore = 70;
         startScore = 100;
-        checkpoints.push_back({Vec3(4.0f, 0.0f, 0.0f), 5.0f});
-        checkpoints.push_back({Vec3(4.0f, 0.0f, -5.0f), 5.0f});
-        checkpoints.push_back({Vec3(8.0f, 0.0f, 8.0f), 5.0f});
+        checkpoints.push_back({Vec3(-4.0f, 0.0f, 8.0f), 1.5f});
+        checkpoints.push_back({Vec3(4.0f, 0.0f, -5.0f), 1.5f});
+        checkpoints.push_back({Vec3(8.0f, 0.0f, 8.0f), 1.5f});
         return;
     }
 
@@ -55,7 +60,7 @@ void ExamManager::loadExam(const std::string& filename)
         } else if (token == "CHECKPOINT") {
             float x, y, z;
             if (ss >> x >> y >> z) {
-                checkpoints.push_back({Vec3(x, y, z), 5.0f});
+                checkpoints.push_back({Vec3(x, y, z), 1.5f});
             }
         }
     }
@@ -170,7 +175,11 @@ void ExamManager::passExam()
 void ExamManager::generateReport() const
 {
     // Create reports dir
+#ifdef _WIN32
+    mkdir("reports");
+#else
     mkdir("reports", 0777);
+#endif
 
     time_t now = time(0);
     tm* ltm = localtime(&now);

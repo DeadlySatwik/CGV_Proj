@@ -1,5 +1,6 @@
 #include "TrainingManager.h"
 #include "PlayerCar.h"
+#include "PedestrianManager.h"
 #include "Road.h"
 #include <iostream>
 #include <cmath>
@@ -36,6 +37,14 @@ void TrainingManager::reset()
 
     quietZoneCenter = Vec3(0,0,0);
     quietZoneRadius = 5.0f;
+
+    // Note: pedManager is NOT reset here — it's a persistent reference
+    // set during loadScene(). Nulling it would break pedestrian rules.
+    lastCrosswalkChecked = "";
+    pedestrianGraceTimer = 0.0f;
+    playerWasInCrosswalk = false;
+    honkCooldown = 0.0f;
+    pendingLogs.clear();
 }
 
 void TrainingManager::cycleLesson()
@@ -48,10 +57,14 @@ void TrainingManager::cycleLesson()
         activeLesson = LESSON_PARKING;
         setObjective("Parking Challenge");
         cout << "\n[LESSON] Switched to Parking Challenge" << endl;
+    } else if (activeLesson == LESSON_PARKING) {
+        activeLesson = LESSON_PEDESTRIAN_SAFETY;
+        setObjective("Pedestrian Safety");
+        pushLog("Lesson: Pedestrian Safety");
     } else {
         activeLesson = LESSON_GENERAL_DRIVING;
         setObjective("Free Driving (Training)");
-        cout << "\n[LESSON] Switched to Free Driving (Training)" << endl;
+        pushLog("Lesson: Free Driving");
     }
 }
 
@@ -111,14 +124,26 @@ void TrainingManager::applyPenalty(int points, const std::string& reason)
 {
     currentScore -= points;
     lastViolation = reason + " (-" + std::to_string(points) + " pts)";
-    cout << "\n[RULE VIOLATION] " << lastViolation << " | Current Score: " << currentScore << "\n" << endl;
+    pushLog(lastViolation);
 }
 
 void TrainingManager::addScore(int points, const std::string& reason)
 {
     currentScore += points;
     lastViolation = reason + " (+" + std::to_string(points) + " pts)";
-    cout << "\n[SUCCESS] " << lastViolation << " | Current Score: " << currentScore << "\n" << endl;
+    pushLog(lastViolation);
+}
+
+std::vector<std::string> TrainingManager::popLogs()
+{
+    std::vector<std::string> out;
+    out.swap(pendingLogs);
+    return out;
+}
+
+void TrainingManager::pushLog(const std::string& msg)
+{
+    pendingLogs.push_back(msg);
 }
 
 void TrainingManager::update(PlayerCar* player, const std::vector<GameObject*>& objects, float delta, Driveable* currentRoad)
@@ -126,6 +151,9 @@ void TrainingManager::update(PlayerCar* player, const std::vector<GameObject*>& 
     if (!player) return;
 
     std::string oldWarning = currentWarning;
+
+    // Update honk cooldown
+    if (honkCooldown > 0.0f) honkCooldown -= delta;
 
     checkSpeedLimit(player, delta);
     
@@ -142,8 +170,11 @@ void TrainingManager::update(PlayerCar* player, const std::vector<GameObject*>& 
         checkParking(player, delta);
     }
 
+    // Pedestrian rules always active in training/exam (not lesson-gated)
+    checkPedestrianRules(player, delta);
+
     if (currentWarning != oldWarning && !currentWarning.empty()) {
-        cout << "\n[WARNING] " << currentWarning << endl;
+        pushLog("! " + currentWarning);
     }
 }
 
@@ -157,9 +188,10 @@ void TrainingManager::checkQuietZone(PlayerCar* player, float delta)
         if (currentWarning != "Quiet Zone. No Honking!") {
             setWarning("Quiet Zone. No Honking!");
         }
-        if (player->isHonking) {
+        if (player->isHonking && honkCooldown <= 0.0f) {
             applyPenalty(25, "Honking in Quiet Zone");
-            player->isHonking = false; // Prevent spamming
+            player->isHonking = false;
+            honkCooldown = 1.5f; // 1.5s cooldown between honk penalties
         }
     } else {
         if (currentWarning == "Quiet Zone. No Honking!") {
@@ -404,6 +436,104 @@ void TrainingManager::checkIntersectionRules(PlayerCar* player, const std::vecto
             isStopped = false;
             currentYieldState = YIELD_NONE;
             if (currentWarning == "Yield to higher-priority traffic") setWarning("");
+        }
+    }
+}
+
+void TrainingManager::checkPedestrianRules(PlayerCar* player, float delta)
+{
+    if (!pedManager || !pedManager->isEnabled()) return;
+
+    Vec3 pPos = player->getPos();
+    float playerSpeed = fabs(player->speed);
+
+    bool inCrosswalk = pedManager->isPlayerInCrosswalkZone(pPos);
+    bool inApproach  = pedManager->isPlayerInApproachZone(pPos);
+    bool pedCrossing = pedManager->isPedestrianCrossingNear(pPos);
+    bool pedRightOfWay = pedManager->pedestrianHasRightOfWayNear(pPos);
+
+    std::string nearestCwId = pedManager->getNearestCrosswalkId(pPos);
+
+    // --- Approach zone warning ---
+    if (inApproach && !inCrosswalk)
+    {
+        if (pedCrossing || pedRightOfWay)
+        {
+            if (currentWarning != "Pedestrian Crossing - Slow Down and Stop")
+            {
+                setWarning("Pedestrian Crossing - Slow Down and Stop");
+            }
+        }
+        else
+        {
+            // Just approaching a crosswalk, mild info
+            if (currentWarning != "Approaching Pedestrian Crossing" &&
+                currentWarning != "Pedestrian Crossing - Slow Down and Stop" &&
+                currentWarning != "Yield to higher-priority traffic" &&
+                currentWarning != "Wrong-way driving detected!" &&
+                currentWarning != "Quiet Zone. No Honking!" &&
+                currentWarning != "Press 'P' to Park!")
+            {
+                // Only set if no higher-priority warning is active
+                setWarning("Approaching Pedestrian Crossing");
+            }
+        }
+    }
+
+    // --- Crosswalk zone violation logic ---
+    if (inCrosswalk)
+    {
+        // Grace timer: if player was already in the crosswalk before a ped started crossing
+        if (!playerWasInCrosswalk)
+        {
+            // Player just entered the crosswalk zone
+            playerWasInCrosswalk = true;
+            pedestrianGraceTimer = 0.0f;
+        }
+
+        pedestrianGraceTimer += delta;
+
+        if (pedCrossing && playerSpeed > 0.05f)
+        {
+            // Pedestrian is actively crossing and player is moving through
+            if (nearestCwId != lastCrosswalkChecked && pedestrianGraceTimer > 0.5f)
+            {
+                applyPenalty(20, "Failure to Yield to Pedestrian");
+                lastCrosswalkChecked = nearestCwId;
+                setWarning("");
+            }
+        }
+        else if (pedRightOfWay && !pedCrossing && playerSpeed > 0.05f)
+        {
+            // Pedestrian waiting with right-of-way, player blowing through
+            if (nearestCwId != lastCrosswalkChecked && pedestrianGraceTimer > 0.5f)
+            {
+                applyPenalty(15, "Crosswalk Disregard");
+                lastCrosswalkChecked = nearestCwId;
+                setWarning("");
+            }
+        }
+    }
+    else
+    {
+        // Player is not in any crosswalk zone
+        playerWasInCrosswalk = false;
+        pedestrianGraceTimer = 0.0f;
+
+        // Clear pedestrian-related warnings if they're stale
+        if (currentWarning == "Pedestrian Crossing - Slow Down and Stop" && !inApproach)
+        {
+            setWarning("");
+        }
+        if (currentWarning == "Approaching Pedestrian Crossing" && !inApproach)
+        {
+            setWarning("");
+        }
+
+        // Reset crosswalk tracking when far away
+        if (!inApproach)
+        {
+            lastCrosswalkChecked = "";
         }
     }
 }

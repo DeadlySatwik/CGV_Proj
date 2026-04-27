@@ -108,6 +108,10 @@ void Simulator::run()
 {
     objects.reserve(maxNumberOfObjects);
 
+    // Initialize pedestrian crosswalks now that road data is loaded
+    pedestrianManager.initCrosswalks(objects);
+    modeManager.getTrainingManager().setPedestrianManager(&pedestrianManager);
+
     cout << "Simulator is running" << endl;
     EngineCore::run();
 }
@@ -376,7 +380,13 @@ void Simulator::redraw()
 
     modeManager.draw();
 
+    // Draw pedestrian system (crosswalks, signals, pedestrians)
+    pedestrianManager.drawAll();
+
     popMatrix();
+
+    // Draw 2D HUD overlay on top of everything
+    drawHUD();
 }
 
 Simulator::Simulator() : maxNumberOfObjects(0), CAMERA_VELOCITY(3)
@@ -404,6 +414,8 @@ Simulator::Simulator() : maxNumberOfObjects(0), CAMERA_VELOCITY(3)
     thirdPersonMode = false;
     playerInputMap = 0;
     globalMaxVehicles = 50;
+    showHUD = true;
+    showLog = true;
 
     // Day/Night initialization — start at 10:00 (morning)
     worldTime = 10.0f;
@@ -435,6 +447,10 @@ void Simulator::keyHeld(char k)
             break;
         case 39: // VK_RIGHT
             playerInputMap |= PlayerCar::INPUT_STEER_RIGHT;
+            break;
+        case 'h':
+        case 'H':
+            playerInputMap |= PlayerCar::INPUT_HORN;
             break;
         }
         return; // Don't move free camera while driving
@@ -493,6 +509,12 @@ void Simulator::keyPressed(char k)
     {
     case 'r':
         modeManager.toggleMode();
+        if (modeManager.getMode() == ModeManager::BASIC_DRIVING)
+            addLog("Mode: Basic Free Drive");
+        else if (modeManager.getMode() == ModeManager::TRAINING)
+            addLog("Mode: Training");
+        else
+            addLog("Mode: Exam Started");
         break;
     case 'v':
         if (modeManager.getMode() == ModeManager::TRAINING)
@@ -529,6 +551,12 @@ void Simulator::keyPressed(char k)
     case 'f':
         thirdPersonMode = !thirdPersonMode;
         cout << "Camera: " << (thirdPersonMode ? "3rd Person (Arrow keys to drive)" : "Free Fly (WASD to move)") << endl;
+        break;
+    case 'g':
+        showHUD = !showHUD;
+        break;
+    case '/':
+        showLog = !showLog;
         break;
 
     // --- Day/Night controls ---
@@ -661,6 +689,22 @@ void Simulator::singleUpdate(const float delta)
     // Evaluate rules for the active player vehicle
     Driveable *currentRoad = getRoadAt(activePlayerVeh->getPos());
     modeManager.update(activePlayerVeh, objects, delta, currentRoad);
+
+    // Update pedestrian system based on current mode
+    if (modeManager.getMode() != ModeManager::BASIC_DRIVING) {
+        pedestrianManager.setEnabled(true);
+    } else {
+        pedestrianManager.setEnabled(false);
+    }
+    pedestrianManager.update(delta);
+
+    // Poll logs from TrainingManager into the game log
+    if (modeManager.getMode() != ModeManager::BASIC_DRIVING) {
+        std::vector<std::string> newLogs = modeManager.getTrainingManager().popLogs();
+        for (size_t i = 0; i < newLogs.size(); ++i) {
+            addLog(newLogs[i]);
+        }
+    }
 
     updateWorldTime(delta); // advance world clock
 }
@@ -916,6 +960,19 @@ bool Simulator::isPlayerBlocked(const Vec3 &testPos) const
         }
     }
 
+    // Check against pedestrians
+    std::vector<Vec3> pedPositions;
+    pedestrianManager.getActivePedestrianPositions(pedPositions);
+    for (size_t p = 0; p < pedPositions.size(); ++p)
+    {
+        float dx = testPos.x - pedPositions[p].x;
+        float dz = testPos.z - pedPositions[p].z;
+        float dist2 = dx * dx + dz * dz;
+        float minDst = playerRadius + 0.06f;
+        if (dist2 < minDst * minDst)
+            return true;
+    }
+
     return false;
 }
 
@@ -970,5 +1027,436 @@ void Simulator::printTelemetry() const
              << " | Active: " << getActiveVehicleCount()
              << " | Cam: " << (thirdPersonMode ? "3rd" : "Free")
              << endl;
+    }
+}
+
+// ===== HUD Overlay =====
+
+static void renderText(float x, float y, const std::string& text, GLuint fontBase)
+{
+    glRasterPos2f(x, y);
+    glListBase(fontBase);
+    glCallLists((GLsizei)text.length(), GL_UNSIGNED_BYTE, text.c_str());
+}
+
+void Simulator::drawHUD()
+{
+    if (!showHUD) return;
+
+    GLuint fontBase = EngineCore::getFontListBase();
+    if (fontBase == 0) return;
+
+    // Switch to 2D orthographic projection
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0, width, 0, height, -1, 1);
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    // Disable 3D stuff
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_LIGHTING);
+    glDisable(GL_TEXTURE_2D);
+
+    // ===== Bottom controls panel (semi-transparent dark box) =====
+    float panelH = 140.0f;
+    float panelW = (float)width;
+    float panelPad = 10.0f;
+
+    // Semi-transparent black background
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(0.0f, 0.0f, 0.0f, 0.65f);
+    glBegin(GL_QUADS);
+    glVertex2f(0,      0);
+    glVertex2f(panelW, 0);
+    glVertex2f(panelW, panelH);
+    glVertex2f(0,      panelH);
+    glEnd();
+
+    // Subtle top border line
+    glColor4f(0.4f, 0.6f, 0.9f, 0.6f);
+    glLineWidth(1.5f);
+    glBegin(GL_LINES);
+    glVertex2f(0,      panelH);
+    glVertex2f(panelW, panelH);
+    glEnd();
+    glLineWidth(1.0f);
+
+    glDisable(GL_BLEND);
+
+    // ===== Text rendering =====
+    float lineH = 15.0f;
+    float col1 = panelPad + 5.0f;
+    float col2 = 340.0f;
+    float col3 = 660.0f;
+    float topY = panelH - panelPad - lineH;
+
+    // Column 1: Movement controls
+    glColor3f(0.5f, 0.8f, 1.0f); // light blue header
+    renderText(col1, topY, "MOVEMENT", fontBase);
+    glColor3f(0.9f, 0.9f, 0.9f); // white text
+    renderText(col1, topY - lineH * 1, "W/A/S/D     Camera move", fontBase);
+    renderText(col1, topY - lineH * 2, "Q/E/Space   Vertical move", fontBase);
+    renderText(col1, topY - lineH * 3, "Mouse Drag  Rotate camera", fontBase);
+    renderText(col1, topY - lineH * 4, "Arrow/IJKL  Drive vehicle", fontBase);
+    renderText(col1, topY - lineH * 5, "F           3rd person view", fontBase);
+    renderText(col1, topY - lineH * 6, "H           Honk horn", fontBase);
+    renderText(col1, topY - lineH * 7, "1/2/3       Car / Bus / Bike", fontBase);
+
+    // Column 2: Game modes
+    glColor3f(0.5f, 0.8f, 1.0f);
+    renderText(col2, topY, "MODES & LESSONS", fontBase);
+    glColor3f(0.9f, 0.9f, 0.9f);
+    renderText(col2, topY - lineH * 1, "R           Cycle modes", fontBase);
+    renderText(col2, topY - lineH * 2, "V           Cycle lessons", fontBase);
+    renderText(col2, topY - lineH * 3, "P           Park (Training)", fontBase);
+    renderText(col2, topY - lineH * 4, "O           Toggle projection", fontBase);
+    renderText(col2, topY - lineH * 5, "T/Y         Updates per frame", fontBase);
+    renderText(col2, topY - lineH * 6, "[/]         Time scale", fontBase);
+    renderText(col2, topY - lineH * 7, "N/M         Day phase / time", fontBase);
+
+    // Column 3: Status info
+    glColor3f(0.5f, 0.8f, 1.0f);
+    renderText(col3, topY, "STATUS", fontBase);
+
+    // Current mode
+    std::string modeStr;
+    if (modeManager.getMode() == ModeManager::BASIC_DRIVING)
+        modeStr = "Basic Free Drive";
+    else if (modeManager.getMode() == ModeManager::TRAINING)
+        modeStr = "Training Mode";
+    else
+        modeStr = "Exam Mode";
+
+    glColor3f(0.3f, 1.0f, 0.5f); // green
+    renderText(col3, topY - lineH * 1, "Mode:  " + modeStr, fontBase);
+
+    // Camera
+    glColor3f(0.9f, 0.9f, 0.9f);
+    renderText(col3, topY - lineH * 2, std::string("Camera: ") + (thirdPersonMode ? "3rd Person" : "Free Cam"), fontBase);
+
+    // Time
+    int h = (int)worldTime;
+    int mn = (int)((worldTime - h) * 60);
+    std::string timeStr = (h < 10 ? "0" : "") + std::to_string(h) + ":" + (mn < 10 ? "0" : "") + std::to_string(mn);
+    renderText(col3, topY - lineH * 3, "Time:  " + timeStr + " " + phaseNames[dayPhase], fontBase);
+
+    // Score (Training/Exam only)
+    if (modeManager.getMode() != ModeManager::BASIC_DRIVING)
+    {
+        const TrainingManager &tm = modeManager.getTrainingManager();
+        glColor3f(1.0f, 0.9f, 0.3f); // gold
+        renderText(col3, topY - lineH * 4, "Score: " + std::to_string(tm.getScore()), fontBase);
+
+        // Warning
+        std::string warn = tm.getCurrentWarning();
+        if (!warn.empty())
+        {
+            glColor3f(1.0f, 0.3f, 0.3f); // red
+            renderText(col3, topY - lineH * 5, "! " + warn, fontBase);
+        }
+
+        // Last violation
+        std::string viol = tm.getLastViolation();
+        if (viol != "None")
+        {
+            glColor3f(1.0f, 0.5f, 0.2f); // orange
+            renderText(col3, topY - lineH * 6, viol, fontBase);
+        }
+    }
+
+    // Hint to toggle HUD
+    glColor3f(0.5f, 0.5f, 0.5f);
+    renderText(col3, topY - lineH * 7, "G=HUD  /=Log", fontBase);
+
+    // ===== Log Panel (top-left) =====
+    drawLogPanel(fontBase);
+
+    // ===== Mode Info Panel (top-right) =====
+    drawModeInfoPanel(fontBase);
+
+    // Restore 3D state
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
+// ===== addLog =====
+
+void Simulator::addLog(const std::string& msg)
+{
+    gameLog.insert(gameLog.begin(), msg);
+    if (gameLog.size() > 12)
+        gameLog.resize(12);
+}
+
+// ===== Log Panel (top-left) =====
+
+void Simulator::drawLogPanel(GLuint fontBase)
+{
+    if (!showLog || gameLog.empty()) return;
+
+    float logW = 310.0f;
+    float lineH = 14.0f;
+    float padX = 10.0f;
+    float padY = 8.0f;
+    int maxLines = (int)gameLog.size();
+    if (maxLines > 12) maxLines = 12;
+    float logH = padY * 2 + lineH * (maxLines + 1); // +1 for header
+
+    float logX = 6.0f;
+    float logY = (float)height - logH - 6.0f;
+
+    // Semi-transparent background
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(0.0f, 0.0f, 0.0f, 0.6f);
+    glBegin(GL_QUADS);
+    glVertex2f(logX,        logY);
+    glVertex2f(logX + logW, logY);
+    glVertex2f(logX + logW, logY + logH);
+    glVertex2f(logX,        logY + logH);
+    glEnd();
+
+    // Right border accent
+    glColor4f(0.4f, 0.6f, 0.9f, 0.5f);
+    glLineWidth(1.5f);
+    glBegin(GL_LINES);
+    glVertex2f(logX + logW, logY);
+    glVertex2f(logX + logW, logY + logH);
+    glEnd();
+    // Bottom border
+    glBegin(GL_LINES);
+    glVertex2f(logX,        logY);
+    glVertex2f(logX + logW, logY);
+    glEnd();
+    glLineWidth(1.0f);
+    glDisable(GL_BLEND);
+
+    // Header
+    float textTop = logY + logH - padY - lineH;
+    glColor3f(0.5f, 0.8f, 1.0f);
+    renderText(logX + padX, textTop, "EVENT LOG", fontBase);
+
+    // Dim toggle hint
+    glColor3f(0.45f, 0.45f, 0.45f);
+    renderText(logX + logW - 100.0f, textTop, "/ to hide", fontBase);
+
+    // Log entries (newest at top)
+    for (int i = 0; i < maxLines; ++i)
+    {
+        float y = textTop - lineH * (i + 1);
+        // Color by content
+        const std::string& entry = gameLog[i];
+        if (entry.find("(-") != std::string::npos)
+            glColor3f(1.0f, 0.45f, 0.25f); // orange for penalties
+        else if (entry.find("(+") != std::string::npos)
+            glColor3f(0.3f, 1.0f, 0.5f);   // green for bonuses
+        else if (entry.find("!") == 0)
+            glColor3f(1.0f, 0.85f, 0.3f);   // yellow for warnings
+        else
+            glColor3f(0.8f, 0.8f, 0.8f);    // grey for info
+
+        // Truncate long strings
+        std::string display = entry.substr(0, 38);
+        renderText(logX + padX, y, display, fontBase);
+    }
+}
+
+// ===== Mode Info Panel (top-right) =====
+
+void Simulator::drawModeInfoPanel(GLuint fontBase)
+{
+    if (modeManager.getMode() == ModeManager::BASIC_DRIVING) return;
+
+    float panelW = 280.0f;
+    float lineH = 15.0f;
+    float padX = 12.0f;
+    float padY = 10.0f;
+    float panelX = (float)width - panelW - 6.0f;
+    float panelH;
+
+    if (modeManager.getMode() == ModeManager::EXAM)
+        panelH = padY * 2 + lineH * 8;
+    else
+        panelH = padY * 2 + lineH * 7;
+
+    float panelY = (float)height - panelH - 6.0f;
+
+    // Background
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glColor4f(0.0f, 0.0f, 0.05f, 0.65f);
+    glBegin(GL_QUADS);
+    glVertex2f(panelX,          panelY);
+    glVertex2f(panelX + panelW, panelY);
+    glVertex2f(panelX + panelW, panelY + panelH);
+    glVertex2f(panelX,          panelY + panelH);
+    glEnd();
+
+    // Left border accent
+    glColor4f(0.4f, 0.6f, 0.9f, 0.5f);
+    glLineWidth(1.5f);
+    glBegin(GL_LINES);
+    glVertex2f(panelX, panelY);
+    glVertex2f(panelX, panelY + panelH);
+    glEnd();
+    glBegin(GL_LINES);
+    glVertex2f(panelX,          panelY);
+    glVertex2f(panelX + panelW, panelY);
+    glEnd();
+    glLineWidth(1.0f);
+    glDisable(GL_BLEND);
+
+    float textTop = panelY + panelH - padY - lineH;
+    float tx = panelX + padX;
+
+    if (modeManager.getMode() == ModeManager::TRAINING)
+    {
+        const TrainingManager& tm = modeManager.getTrainingManager();
+
+        // Header
+        glColor3f(0.3f, 1.0f, 0.5f);
+        renderText(tx, textTop, "TRAINING", fontBase);
+
+        // Lesson name
+        std::string lessonName;
+        std::string tip;
+        switch (tm.getLesson()) {
+            case TrainingManager::LESSON_GENERAL_DRIVING:
+                lessonName = "General Driving";
+                tip = "Follow traffic rules";
+                break;
+            case TrainingManager::LESSON_QUIET_ZONE:
+                lessonName = "Quiet Zone";
+                tip = "No honking in red zone!";
+                break;
+            case TrainingManager::LESSON_PARKING:
+                lessonName = "Parking Challenge";
+                tip = "Drive to green marker, press P";
+                break;
+            case TrainingManager::LESSON_PEDESTRIAN_SAFETY:
+                lessonName = "Pedestrian Safety";
+                tip = "Yield at crosswalks";
+                break;
+        }
+
+        glColor3f(0.9f, 0.9f, 0.9f);
+        renderText(tx, textTop - lineH * 1, "Lesson: " + lessonName, fontBase);
+
+        // Objective
+        glColor3f(0.7f, 0.85f, 1.0f);
+        renderText(tx, textTop - lineH * 2, "Goal: " + tm.getObjective(), fontBase);
+
+        // Tip
+        glColor3f(0.6f, 0.6f, 0.6f);
+        renderText(tx, textTop - lineH * 3, "Tip: " + tip, fontBase);
+
+        // Score
+        glColor3f(1.0f, 0.9f, 0.3f);
+        renderText(tx, textTop - lineH * 4, "Score: " + std::to_string(tm.getScore()), fontBase);
+
+        // Warning
+        std::string warn = tm.getCurrentWarning();
+        if (!warn.empty()) {
+            glColor3f(1.0f, 0.3f, 0.3f);
+            renderText(tx, textTop - lineH * 5, "! " + warn, fontBase);
+        } else {
+            glColor3f(0.4f, 0.6f, 0.4f);
+            renderText(tx, textTop - lineH * 5, "All clear", fontBase);
+        }
+
+        // Cycle hint
+        glColor3f(0.45f, 0.45f, 0.45f);
+        renderText(tx, textTop - lineH * 6, "V=Next Lesson  R=Mode", fontBase);
+    }
+    else if (modeManager.getMode() == ModeManager::EXAM)
+    {
+        const ExamManager& em = modeManager.getExamManager();
+        const TrainingManager& tm = modeManager.getTrainingManager();
+
+        // Header
+        glColor3f(1.0f, 0.85f, 0.2f);
+        renderText(tx, textTop, "EXAM", fontBase);
+
+        // Status
+        std::string stateStr;
+        if (em.getState() == ExamManager::IN_PROGRESS)
+            stateStr = "IN PROGRESS";
+        else if (em.getState() == ExamManager::PASSED)
+            stateStr = "PASSED!";
+        else if (em.getState() == ExamManager::FAILED)
+            stateStr = "FAILED";
+        else
+            stateStr = "NOT STARTED";
+
+        if (em.getState() == ExamManager::PASSED)
+            glColor3f(0.3f, 1.0f, 0.5f);
+        else if (em.getState() == ExamManager::FAILED)
+            glColor3f(1.0f, 0.3f, 0.3f);
+        else
+            glColor3f(0.9f, 0.9f, 0.9f);
+        renderText(tx, textTop - lineH * 1, "Status: " + stateStr, fontBase);
+
+        // Timer
+        float t = em.getTimeRemaining();
+        int mins = (int)(t / 60.0f);
+        int secs = (int)t % 60;
+        std::string timeStr = (mins < 10 ? "0" : "") + std::to_string(mins) + ":" + (secs < 10 ? "0" : "") + std::to_string(secs);
+        if (t < 30.0f)
+            glColor3f(1.0f, 0.3f, 0.3f); // red when low
+        else
+            glColor3f(0.9f, 0.9f, 0.9f);
+        renderText(tx, textTop - lineH * 2, "Time: " + timeStr, fontBase);
+
+        // Score / Pass
+        glColor3f(1.0f, 0.9f, 0.3f);
+        renderText(tx, textTop - lineH * 3, "Score: " + std::to_string(em.getExamScore()) + " / " + std::to_string(em.getPassScore()) + " pass", fontBase);
+
+        // Checkpoints
+        size_t cpDone = em.getCurrentCheckpointIndex();
+        size_t cpTotal = em.getTotalCheckpoints();
+        std::string cpStr = "CP: ";
+        for (size_t c = 0; c < cpTotal; ++c) {
+            if (c < cpDone)
+                cpStr += "[done] ";
+            else if (c == cpDone)
+                cpStr += "[>>" + std::to_string(c+1) + "] ";
+            else
+                cpStr += "[" + std::to_string(c+1) + "] ";
+        }
+        glColor3f(0.7f, 0.85f, 1.0f);
+        renderText(tx, textTop - lineH * 4, cpStr, fontBase);
+
+        // Next checkpoint hint
+        if (cpDone < cpTotal) {
+            const ExamManager::Checkpoint& nextCp = em.getCheckpoints()[cpDone];
+            char buf[64];
+            snprintf(buf, sizeof(buf), "Next: (%.0f, %.0f)", nextCp.pos.x, nextCp.pos.z);
+            glColor3f(0.6f, 0.6f, 0.6f);
+            renderText(tx, textTop - lineH * 5, std::string(buf), fontBase);
+        } else {
+            glColor3f(0.3f, 1.0f, 0.5f);
+            renderText(tx, textTop - lineH * 5, "All checkpoints reached!", fontBase);
+        }
+
+        // Warning
+        std::string warn = tm.getCurrentWarning();
+        if (!warn.empty()) {
+            glColor3f(1.0f, 0.3f, 0.3f);
+            renderText(tx, textTop - lineH * 6, "! " + warn, fontBase);
+        }
+
+        // Hint
+        glColor3f(0.45f, 0.45f, 0.45f);
+        renderText(tx, textTop - lineH * 7, "R=Cancel Exam", fontBase);
     }
 }

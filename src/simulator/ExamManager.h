@@ -37,6 +37,12 @@ public:
     void draw() const;
 
     ExamState getState() const { return currentState; }
+    float getTimeRemaining() const { return timeRemaining; }
+    int getExamScore() const { return currentScore; }
+    int getPassScore() const { return passScore; }
+    size_t getCurrentCheckpointIndex() const { return currentCheckpointIndex; }
+    size_t getTotalCheckpoints() const { return checkpoints.size(); }
+    const std::vector<Checkpoint>& getCheckpoints() const { return checkpoints; }
     void cancelExam();
 
 private:
