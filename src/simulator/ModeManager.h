@@ -21,7 +21,7 @@ public:
     ModeManager();
 
     GameMode getMode() const { return currentMode; }
-    void toggleMode();
+    void toggleMode(int currentVehicleIdx = 0);
 
     // Returns a reference to the training manager to allow HUD access
     TrainingManager& getTrainingManager() { return trainingManager; }

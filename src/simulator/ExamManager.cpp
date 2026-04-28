@@ -39,9 +39,9 @@ void ExamManager::loadExam(const std::string& filename)
         timeLimit = 180.0f;
         passScore = 70;
         startScore = 100;
-        checkpoints.push_back({Vec3(-4.0f, 0.0f, 8.0f), 1.5f});
-        checkpoints.push_back({Vec3(4.0f, 0.0f, -5.0f), 1.5f});
-        checkpoints.push_back({Vec3(8.0f, 0.0f, 8.0f), 1.5f});
+        checkpoints.push_back({Vec3(-4.0f, 0.0f, 8.0f), 1.5f, "Navigate_Intersection"});
+        checkpoints.push_back({Vec3(4.0f, 0.0f, -5.0f), 1.5f, "Stop_at_Red_Light"});
+        checkpoints.push_back({Vec3(8.0f, 0.0f, 8.0f), 1.5f, "Park_Safely"});
         return;
     }
 
@@ -60,7 +60,9 @@ void ExamManager::loadExam(const std::string& filename)
         } else if (token == "CHECKPOINT") {
             float x, y, z;
             if (ss >> x >> y >> z) {
-                checkpoints.push_back({Vec3(x, y, z), 1.5f});
+                std::string objective = "Reach_Checkpoint";
+                ss >> objective; // Will naturally stay default if no 4th token
+                checkpoints.push_back({Vec3(x, y, z), 1.5f, objective});
             }
         }
     }
@@ -68,9 +70,10 @@ void ExamManager::loadExam(const std::string& filename)
     cout << "[EXAM] Loaded config: " << timeLimit << "s limit, " << passScore << " pass score, " << checkpoints.size() << " checkpoints." << endl;
 }
 
-void ExamManager::startExam(const TrainingManager& tm)
+void ExamManager::startExam(const TrainingManager& tm, const std::string& vehicleType)
 {
     currentState = IN_PROGRESS;
+    activeVehicleType = vehicleType;
     timeRemaining = timeLimit;
     currentScore = startScore;
     lastObservedScore = tm.getScore();
@@ -81,6 +84,7 @@ void ExamManager::startExam(const TrainingManager& tm)
     
     cout << "\n=============================================" << endl;
     cout << "   [EXAM STARTED] Good luck!" << endl;
+    cout << "   Vehicle: " << activeVehicleType << endl;
     cout << "   Time Limit: " << timeLimit << "s | Pass Score: " << passScore << endl;
     cout << "=============================================\n" << endl;
 }
@@ -170,6 +174,11 @@ void ExamManager::passExam()
     cout << "   Final Score: " << currentScore << endl;
     cout << "=============================================\n" << endl;
     generateReport();
+    
+    char buf[64];
+    time_t now = time(0);
+    strftime(buf, sizeof(buf), "%Y%m%d_%H%M%S", localtime(&now));
+    generateLicense(string(buf));
 }
 
 void ExamManager::generateReport() const
@@ -195,35 +204,93 @@ void ExamManager::generateReport() const
     }
 
     out << "# Driving Exam Report\n\n";
+    
+    out << "## Candidate Information\n";
+    out << "- **Vehicle Type:** " << activeVehicleType << "\n";
+    out << "- **Date:** " << buf << "\n\n";
+    
     out << "## Result\n";
     out << "**" << (currentState == PASSED ? "PASS" : "FAIL") << "**\n\n";
     
-    out << "## Score\n";
-    out << currentScore << " / " << startScore << " (Passing: " << passScore << ")\n\n";
-    
+    out << "## Score & Duration\n";
+    out << "- **Score:** " << currentScore << " / " << startScore << " (Passing: " << passScore << ")\n";
     float timeTaken = timeLimit - timeRemaining;
-    out << "## Time\n";
-    out << (int)timeTaken << "s / " << (int)timeLimit << "s\n\n";
+    out << "- **Time:** " << (int)timeTaken << "s / " << (int)timeLimit << "s\n\n";
     
     if (currentState == FAILED) {
         out << "## Failure Reason\n";
-        out << failureReason << "\n\n";
+        out << "> " << failureReason << "\n\n";
     }
 
-    out << "## Checkpoints\n";
-    out << currentCheckpointIndex << " / " << checkpoints.size() << " completed\n\n";
-
-    out << "## Violations (" << totalViolations << " total)\n";
-    if (totalViolations == 0) {
-        out << "- None. Perfect driving!\n";
-    } else {
-        for (auto const& pair : violationCounts) {
-            out << "- " << pair.first << ": " << pair.second << "\n";
+    out << "## Checkpoints & Objectives\n";
+    out << "| Progress | Objective |\n";
+    out << "| :--- | :--- |\n";
+    for (size_t i = 0; i < checkpoints.size(); i++) {
+        if (i < currentCheckpointIndex) {
+            out << "| [x] | " << checkpoints[i].objective << " |\n";
+        } else {
+            out << "| [ ] | " << checkpoints[i].objective << " |\n";
         }
+    }
+    out << "\n";
+
+    out << "## Violations Summary (" << totalViolations << " total)\n";
+    if (totalViolations == 0) {
+        out << "No violations recorded. Perfect driving!\n\n";
+    } else {
+        out << "| Violation Type | Count |\n";
+        out << "| :--- | :--- |\n";
+        for (auto const& pair : violationCounts) {
+            out << "| " << pair.first << " | " << pair.second << " |\n";
+        }
+        out << "\n";
+    }
+    
+    out << "## Remarks\n";
+    if (currentState == PASSED) {
+        out << "The candidate has demonstrated sufficient skill in operating the " << activeVehicleType 
+            << " and adhering to traffic rules.\n\n";
+    } else {
+        out << "The candidate failed to meet the required standard. Please review the violations above and practice further in Training Mode.\n\n";
     }
 
     out.close();
     cout << "[EXAM] Report generated at: " << filename << endl;
+}
+
+void ExamManager::generateLicense(const std::string& timestamp) const
+{
+    string filename = "reports/driving_license_" + timestamp + ".md";
+    ofstream out(filename);
+    
+    if (!out.is_open()) {
+        cout << "[EXAM] Error: Could not write license to " << filename << endl;
+        return;
+    }
+    
+    out << "# OFFICIAL DRIVING LICENSE\n\n";
+    
+    out << "<div style=\"border: 2px solid #2ecc71; padding: 20px; border-radius: 10px; max-width: 400px; font-family: sans-serif;\">\n\n";
+    
+    out << "### STATE OF AWAS - DEPT OF MOTOR VEHICLES\n";
+    out << "--- \n\n";
+    out << "**LICENSE CLASS:** " << activeVehicleType << "\n\n";
+    out << "**CANDIDATE:** Player 1\n\n";
+    
+    time_t now = time(0);
+    char dateBuf[64];
+    strftime(dateBuf, sizeof(dateBuf), "%B %d, %Y", localtime(&now));
+    out << "**ISSUE DATE:** " << dateBuf << "\n\n";
+    
+    out << "**STATUS:** VALID\n\n";
+    out << "**EXAM REF:** " << timestamp << "\n\n";
+    
+    out << "--- \n";
+    out << "*This document certifies that the candidate has successfully passed the required examinations to operate a " << activeVehicleType << ".* \n\n";
+    out << "</div>\n";
+    
+    out.close();
+    cout << "[EXAM] License generated at: " << filename << endl;
 }
 
 void ExamManager::draw() const

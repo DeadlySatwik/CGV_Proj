@@ -508,7 +508,7 @@ void Simulator::keyPressed(char k)
     switch (k)
     {
     case 'r':
-        modeManager.toggleMode();
+        modeManager.toggleMode(currentVehicleIdx);
         if (modeManager.getMode() == ModeManager::BASIC_DRIVING)
             addLog("Mode: Basic Free Drive");
         else if (modeManager.getMode() == ModeManager::TRAINING)
@@ -587,6 +587,11 @@ void Simulator::keyPressed(char k)
     case '2':
     case '3':
     {
+        // Block vehicle switching during exam
+        if (modeManager.getMode() == ModeManager::EXAM) {
+            cout << "[EXAM] Vehicle switching is LOCKED during the exam!" << endl;
+            break;
+        }
         int newIdx = k - '1';
         if (newIdx != currentVehicleIdx)
         {
@@ -1022,10 +1027,15 @@ void Simulator::printTelemetry() const
 
         cout << "[" << (h < 10 ? "0" : "") << h << ":" << (m < 10 ? "0" : "") << m << "] "
              << phaseNames[dayPhase]
-             << " | [EXAM] State: " << (em.getState() == ExamManager::IN_PROGRESS ? "IN PROGRESS" : (em.getState() == ExamManager::PASSED ? "PASSED" : (em.getState() == ExamManager::FAILED ? "FAILED" : "NOT STARTED")))
+             << " | [EXAM " << em.getActiveVehicleType() << "] "
+             << (em.getState() == ExamManager::IN_PROGRESS ? "IN PROGRESS" : 
+                (em.getState() == ExamManager::PASSED ? "PASSED" : 
+                (em.getState() == ExamManager::FAILED ? "FAILED" : "NOT STARTED")))
+             << " | Score: " << em.getExamScore() << "/" << em.getPassScore()
+             << " | Time: " << (int)em.getTimeRemaining() << "s"
+             << " | CP: " << em.getCurrentCheckpointIndex() << "/" << em.getTotalCheckpoints()
+             << " | Obj: " << em.getCurrentObjective()
              << warnStr
-             << " | Active: " << getActiveVehicleCount()
-             << " | Cam: " << (thirdPersonMode ? "3rd" : "Free")
              << endl;
     }
 }

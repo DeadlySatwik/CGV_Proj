@@ -22,6 +22,7 @@ public:
     struct Checkpoint {
         Vec3 pos;
         float radius;
+        std::string objective;
     };
 
     struct ViolationRecord {
@@ -32,7 +33,7 @@ public:
     ExamManager();
 
     void loadExam(const std::string& filename);
-    void startExam(const TrainingManager& tm);
+    void startExam(const TrainingManager& tm, const std::string& vehicleType);
     void update(PlayerCar* player, const TrainingManager& tm, float delta);
     void draw() const;
 
@@ -43,6 +44,15 @@ public:
     size_t getCurrentCheckpointIndex() const { return currentCheckpointIndex; }
     size_t getTotalCheckpoints() const { return checkpoints.size(); }
     const std::vector<Checkpoint>& getCheckpoints() const { return checkpoints; }
+    std::string getActiveVehicleType() const { return activeVehicleType; }
+    
+    // Gets the current objective string for the HUD
+    std::string getCurrentObjective() const {
+        if (currentCheckpointIndex < checkpoints.size()) {
+            return checkpoints[currentCheckpointIndex].objective;
+        }
+        return "Complete";
+    }
     void cancelExam();
 
 private:
@@ -60,6 +70,7 @@ private:
     int lastObservedScore;
     size_t currentCheckpointIndex;
     std::string failureReason;
+    std::string activeVehicleType;
     
     // Stats
     std::map<std::string, int> violationCounts;
@@ -69,6 +80,7 @@ private:
     void failExam(const std::string& reason);
     void passExam();
     void generateReport() const;
+    void generateLicense(const std::string& timestamp) const;
 };
 
 #endif // EXAMMANAGER_H

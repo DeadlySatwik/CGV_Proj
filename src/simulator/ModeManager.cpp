@@ -8,7 +8,7 @@ ModeManager::ModeManager()
     currentMode = BASIC_DRIVING;
 }
 
-void ModeManager::toggleMode()
+void ModeManager::toggleMode(int currentVehicleIdx)
 {
     if (currentMode == BASIC_DRIVING)
     {
@@ -23,8 +23,14 @@ void ModeManager::toggleMode()
     {
         currentMode = EXAM;
         trainingManager.reset();
+        
+        // Resolve vehicle type from index
+        std::string vehType = "CAR";
+        if (currentVehicleIdx == 1) vehType = "BUS";
+        else if (currentVehicleIdx == 2) vehType = "BIKE";
+        
         examManager.loadExam("exampleExam.txt");
-        examManager.startExam(trainingManager);
+        examManager.startExam(trainingManager, vehType);
     }
     else
     {
