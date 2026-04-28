@@ -301,11 +301,11 @@ Note on generated artifacts:
 
 - `src/simulator/ExamManager.h`
   - Use: exam mode declaration.
-  - How: defines exam state, checkpoints, scoring thresholds, and report API.
+  - How: defines exam state, checkpoints with objectives, scoring thresholds, vehicle type tracking, report and license generation API.
 
 - `src/simulator/ExamManager.cpp`
   - Use: exam lifecycle implementation.
-  - How: parses exam config, tracks timer/checkpoints/score, records violations, and exports pass/fail report markdown.
+  - How: parses exam config (including checkpoint objectives), tracks timer/checkpoints/score, records violations, locks vehicle type at start, exports polished pass/fail report markdown, and generates driving license on pass.
 
 - `src/simulator/CrosswalkZone.h`
   - Use: zebra crossing geometry and zone definitions.
@@ -516,9 +516,9 @@ The executable expects data files in the working directory, so run it from the r
 ### Driving / View
 
 - `F`: toggle free-fly and third-person driving mode
-- `1`: switch to player car
-- `2`: switch to player bus
-- `3`: switch to player bike
+- `1`: switch to player car (locked during Exam Mode)
+- `2`: switch to player bus (locked during Exam Mode)
+- `3`: switch to player bike (locked during Exam Mode)
 
 In third-person driving mode:
 
@@ -544,9 +544,11 @@ In third-person driving mode:
 - `R`: cycle mode (BASIC -> TRAINING -> EXAM -> BASIC)
 - `V`: cycle training lesson (only in TRAINING)
 - `P`: attempt parking completion (only in PARKING lesson)
+- `H`: honk horn (penalty in Quiet Zone lesson)
 - `I`: print telemetry snapshot
 - `O`: toggle projection (Perspective/Orthographic)
 - `G`: toggle in-game HUD overlay on/off
+- `/`: toggle event log panel on/off
 
 ## 7. Simulation Modes
 
@@ -574,12 +576,17 @@ Training lessons cycle with `V`: General Driving → Quiet Zone → Parking → 
 
 Uses `ExamManager` on top of training signals:
 
-- Time limit
+- Time limit countdown
 - Pass score threshold
-- Ordered checkpoints
+- Ordered checkpoints with named objectives (e.g. `Navigate_Intersection`, `Stop_at_Red_Light`)
+- Vehicle type locked at exam start — switching `1`/`2`/`3` is disabled
+- Active vehicle type (CAR/BUS/BIKE) recorded in report
 - Final PASS/FAIL result
-- Markdown report written to `reports/exam_YYYYMMDD_HHMMSS.md`
+- Polished Markdown report written to `reports/exam_YYYYMMDD_HHMMSS.md`
+- Driving license generated on PASS: `reports/driving_license_YYYYMMDD_HHMMSS.md`
+- No license generated on FAIL
 - Pedestrian violations are counted toward the exam score
+- Separate reports and licenses for each vehicle type
 
 ## 8. Driving Model
 
@@ -717,7 +724,9 @@ Supported directives:
 - `TIME_LIMIT <seconds>`
 - `PASS_SCORE <score>`
 - `START_SCORE <score>`
-- `CHECKPOINT <x> <y> <z>`
+- `CHECKPOINT <x> <y> <z> [objective_name]`
+
+The optional `objective_name` on a checkpoint line is displayed in the HUD (e.g. `Navigate_Intersection`, `Stop_at_Red_Light`, `Park_Safely`). If omitted, it defaults to `Reach_Checkpoint`.
 
 If loading fails, exam manager falls back to built-in defaults.
 
@@ -791,7 +800,9 @@ Telemetry (`I`) prints mode-aware snapshots including:
 Exam reports:
 
 - Generated in `reports/`
-- Include result, score, time usage, checkpoint progress, and violations
+- Include candidate/vehicle info, result, score, duration, checkpoint table with objectives, violations summary table, and remarks
+- On PASS: a separate `driving_license_<timestamp>.md` is generated with license class matching the exam vehicle (CAR/BUS/BIKE)
+- On FAIL: only the report is generated, no license
 
 ## 14. Pedestrian Crossing System
 

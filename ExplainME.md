@@ -22,9 +22,8 @@ A comprehensive technical breakdown of how this C++ / OpenGL traffic simulator w
 
 ## 1. Graphics Pipeline
 
-### No GLUT — Raw X11 + GLX
 
-This project does **not** use GLUT or GLFW. It uses **raw X11 windowing** and **GLX** for OpenGL context creation on Linux, and the Win32 API on Windows.
+This project does use GLUT or GLFW, if the form. It uses **raw X11 windowing** and **GLX** for OpenGL context creation on Linux, and the Win32 API on Windows.
 
 **File:** `EngineCoreLinux.cpp`
 
