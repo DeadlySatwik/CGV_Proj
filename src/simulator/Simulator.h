@@ -152,6 +152,9 @@ private:
 
     // Mode info panel (top-right)
     void drawModeInfoPanel(GLuint fontBase);
+
+    // Rear backup camera (rendered when player is reversing)
+    void drawRearCamera();
 };
 
 #endif // SIMULTOR_H

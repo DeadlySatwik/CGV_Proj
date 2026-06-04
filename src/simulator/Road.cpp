@@ -1,7 +1,9 @@
 ///   File: Road.cpp
 
 #include "Road.h"
+#include "EngineCore/EngineCore.h"
 #include <cmath>
+#include <cctype>
 using namespace std;
 
 class Simulator;
@@ -1000,6 +1002,51 @@ void Cross::draw()
                 drawCube(0.05f, h, 0.05f);
                 popMatrix();
             }
+        }
+    }
+
+    // ---- 7. Street-name sign post (front-right corner of intersection) ----
+    if (!id.empty())
+    {
+        float postH  = 0.22f + h;    // sits above intersection surface
+        float boardH = 0.030f;
+        float boardW = 0.075f;
+        float signX  =  a * 0.78f;
+        float signZ  = -a * 0.78f;
+
+        // Pole
+        setColor(0.20f, 0.20f, 0.22f);
+        pushMatrix();
+        translate(signX, h + postH * 0.5f, signZ);
+        drawCube(0.007f, postH, 0.007f);
+        popMatrix();
+
+        // Sign board (dark green, road-sign style)
+        setColor(0.04f, 0.38f, 0.12f);
+        pushMatrix();
+        translate(signX, h + postH + boardH * 0.5f, signZ);
+        drawCube(boardW, boardH, 0.010f);
+        popMatrix();
+
+        // White border trim
+        setColor(0.95f, 0.95f, 0.95f);
+        pushMatrix();
+        translate(signX, h + postH + boardH * 0.5f, signZ + 0.006f);
+        drawCube(boardW + 0.005f, boardH + 0.005f, 0.002f);
+        popMatrix();
+
+        // 3D text label using bitmap font
+        GLuint fnt = EngineCore::getFontListBase();
+        if (fnt != 0)
+        {
+            glDisable(GL_LIGHTING);
+            glDisable(GL_DEPTH_TEST);
+            glColor3f(1.0f, 1.0f, 1.0f);
+            glRasterPos3f(signX - 0.020f, h + postH + boardH * 1.2f + 0.005f, signZ + 0.008f);
+            glListBase(fnt);
+            glCallLists((GLsizei)id.size(), GL_UNSIGNED_BYTE, id.c_str());
+            glEnable(GL_DEPTH_TEST);
+            glEnable(GL_LIGHTING);
         }
     }
 }

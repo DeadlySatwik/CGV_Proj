@@ -385,6 +385,9 @@ void Simulator::redraw()
 
     popMatrix();
 
+    // Rear backup camera — rendered before HUD (still in 3-D context)
+    drawRearCamera();
+
     // Draw 2D HUD overlay on top of everything
     drawHUD();
 }
@@ -577,6 +580,29 @@ void Simulator::keyPressed(char k)
     case 'm':
         timeFlowing = !timeFlowing;
         cout << "Time flow: " << (timeFlowing ? "ON" : "PAUSED") << endl;
+        break;
+    case 'z':
+        if (thirdPersonMode && activePlayerVeh)
+        {
+            activePlayerVeh->indicatorLeft = !activePlayerVeh->indicatorLeft;
+            if (activePlayerVeh->indicatorLeft)
+                activePlayerVeh->indicatorRight = false;
+        }
+        break;
+    case 'x':
+        if (thirdPersonMode && activePlayerVeh)
+        {
+            activePlayerVeh->indicatorRight = !activePlayerVeh->indicatorRight;
+            if (activePlayerVeh->indicatorRight)
+                activePlayerVeh->indicatorLeft = false;
+        }
+        break;
+    case 'l':
+        if (thirdPersonMode && activePlayerVeh)
+        {
+            activePlayerVeh->headlightsOn = !activePlayerVeh->headlightsOn;
+            addLog(activePlayerVeh->headlightsOn ? "Headlights ON" : "Headlights OFF");
+        }
         break;
     case 'i':
     {
@@ -1115,7 +1141,7 @@ void Simulator::drawHUD()
     renderText(col1, topY - lineH * 4, "Arrow/IJKL  Drive vehicle", fontBase);
     renderText(col1, topY - lineH * 5, "F           3rd person view", fontBase);
     renderText(col1, topY - lineH * 6, "H           Honk horn", fontBase);
-    renderText(col1, topY - lineH * 7, "1/2/3       Car / Bus / Bike", fontBase);
+    renderText(col1, topY - lineH * 7, "Z/X         L/R Indicator  L=Lights", fontBase);
 
     // Column 2: Game modes
     glColor3f(0.5f, 0.8f, 1.0f);
@@ -1179,6 +1205,51 @@ void Simulator::drawHUD()
         }
     }
 
+    // ===== Vehicle instrument panel (centre-bottom of HUD bar) =====
+    if (thirdPersonMode && activePlayerVeh)
+    {
+        float icX = (float)width * 0.5f - 130.0f;
+        float icY = 50.0f;
+        float icLineH = 15.0f;
+
+        bool indBlink = (activePlayerVeh->indicatorTimer < 0.5f);
+
+        // Left indicator
+        if (activePlayerVeh->indicatorLeft && indBlink)
+            glColor3f(1.0f, 0.70f, 0.0f);
+        else if (activePlayerVeh->indicatorLeft)
+            glColor3f(0.55f, 0.38f, 0.0f);
+        else
+            glColor3f(0.30f, 0.30f, 0.30f);
+        renderText(icX, icY + icLineH, "<< Z (LEFT IND)", fontBase);
+
+        // Right indicator
+        if (activePlayerVeh->indicatorRight && indBlink)
+            glColor3f(1.0f, 0.70f, 0.0f);
+        else if (activePlayerVeh->indicatorRight)
+            glColor3f(0.55f, 0.38f, 0.0f);
+        else
+            glColor3f(0.30f, 0.30f, 0.30f);
+        renderText(icX + 175.0f, icY + icLineH, "X (RIGHT IND) >>", fontBase);
+
+        // Headlights
+        if (activePlayerVeh->headlightsOn)
+            glColor3f(1.0f, 1.0f, 0.55f);
+        else
+            glColor3f(0.30f, 0.30f, 0.30f);
+        renderText(icX + 95.0f, icY + icLineH, "L LIGHTS", fontBase);
+
+        // Speed / gear
+        glColor3f(0.85f, 0.85f, 0.85f);
+        float kmh = fabs(activePlayerVeh->speed) * 36.0f;
+        char spBuf[48];
+        if (activePlayerVeh->speed < -0.01f)
+            snprintf(spBuf, sizeof(spBuf), "%.0f km/h  [R]", kmh);
+        else
+            snprintf(spBuf, sizeof(spBuf), "%.0f km/h", kmh);
+        renderText(icX + 70.0f, icY - 2.0f, spBuf, fontBase);
+    }
+
     // Hint to toggle HUD
     glColor3f(0.5f, 0.5f, 0.5f);
     renderText(col3, topY - lineH * 7, "G=HUD  /=Log", fontBase);
@@ -1190,6 +1261,171 @@ void Simulator::drawHUD()
     drawModeInfoPanel(fontBase);
 
     // Restore 3D state
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_LIGHTING);
+
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+    glMatrixMode(GL_MODELVIEW);
+    glPopMatrix();
+}
+
+// ===== Rear Backup Camera =====
+
+void Simulator::drawRearCamera()
+{
+    if (!thirdPersonMode || !activePlayerVeh) return;
+    if (activePlayerVeh->speed >= -0.01f) return;  // only while reversing
+
+    int camW = 220;
+    int camH = 155;
+    int camX = width  - camW - 10;
+    int camY = 150;   // sit just above the HUD bar
+
+    // --- Clear depth only in the camera sub-region via scissor ---
+    glEnable(GL_SCISSOR_TEST);
+    glScissor(camX, camY, camW, camH);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    glDisable(GL_SCISSOR_TEST);
+
+    // --- Restrict drawing to sub-viewport ---
+    glViewport(camX, camY, camW, camH);
+
+    // Projection
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    float aspect = (float)camW / (float)camH;
+    glFrustum(-0.1 * aspect, 0.1 * aspect, -0.1, 0.1, 0.5, 5000.0);
+
+    // View from rear camera
+    Vec3 rearPos    = activePlayerVeh->getRearCameraPos();
+    Vec3 rearTarget = activePlayerVeh->getRearCameraTarget();
+    Vec3 rearFront  = rearTarget - rearPos;
+    rearFront.normalize();
+    Vec3 worldUp(0, 1, 0);
+    Vec3 rearRight = Vec3::cross(rearFront, worldUp);
+    rearRight.normalize();
+    Vec3 rearUp = Vec3::cross(rearRight, rearFront);
+    rearUp.normalize();
+
+    Vec3 f = rearFront, r = rearRight, u = rearUp;
+    float view[16];
+    view[0]=r.x;  view[4]=r.y;  view[8]=r.z;  view[12]=-(r.x*rearPos.x+r.y*rearPos.y+r.z*rearPos.z);
+    view[1]=u.x;  view[5]=u.y;  view[9]=u.z;  view[13]=-(u.x*rearPos.x+u.y*rearPos.y+u.z*rearPos.z);
+    view[2]=-f.x; view[6]=-f.y; view[10]=-f.z;view[14]= (f.x*rearPos.x+f.y*rearPos.y+f.z*rearPos.z);
+    view[3]=0;    view[7]=0;    view[11]=0;    view[15]=1;
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+    glMultMatrixf(view);
+
+    scale(10, 10, 10);
+    scale(1, 1, -1);
+
+    // Match main-scene lighting/fog
+    updateSkyAndLighting();
+
+    // Ground plane
+    {
+        int curCI   = dayPhase;
+        int nextCI  = (curCI + 1) % PHASE_COUNT;
+        if (curCI == PHASE_NIGHT) nextCI = 1;
+        float gT    = getDayPhaseProgress();
+        Vec3 gc     = lerpVec3(groundColors[curCI],
+                               curCI == PHASE_NIGHT ? groundColors[0] : groundColors[nextCI], gT);
+        setColor(gc);
+        float gs = 80.0f;
+        float gy = -(Road::ROAD_DEPTH + 0.005f);
+        beginDraw(QUADS);
+        setNormal(0, 1, 0);
+        drawVertex(Vec3(-gs, gy, -gs));
+        drawVertex(Vec3( gs, gy, -gs));
+        drawVertex(Vec3( gs, gy,  gs));
+        drawVertex(Vec3(-gs, gy,  gs));
+        endDraw();
+    }
+
+    pushMatrix();
+    for (const auto &object : objects)
+        object->drawObject();
+    activePlayerVeh->drawObject();   // render player car body in rear view
+    pedestrianManager.drawAll();
+    popMatrix();
+
+    glPopMatrix();  // modelview
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix();
+
+    // Restore full viewport
+    glViewport(0, 0, width, height);
+
+    // --- 2-D overlay: border + guidelines ---
+    glMatrixMode(GL_PROJECTION);
+    glPushMatrix();
+    glLoadIdentity();
+    glOrtho(0, width, 0, height, -1, 1);
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_LIGHTING);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Semi-transparent dark frame around the camera view
+    glColor4f(0.0f, 0.0f, 0.0f, 0.82f);
+    glLineWidth(2.0f);
+    glBegin(GL_LINE_LOOP);
+    glVertex2f((float)camX,        (float)camY);
+    glVertex2f((float)(camX+camW), (float)camY);
+    glVertex2f((float)(camX+camW), (float)(camY+camH));
+    glVertex2f((float)camX,        (float)(camY+camH));
+    glEnd();
+    glLineWidth(1.0f);
+
+    // Parking guide lines (green / yellow / red zones)
+    float gx0 = camX + camW * 0.22f;
+    float gx1 = camX + camW * 0.78f;
+    glLineWidth(1.5f);
+    // green — far zone
+    glColor4f(0.10f, 0.88f, 0.10f, 0.80f);
+    glBegin(GL_LINES);
+    glVertex2f(gx0, camY + camH * 0.27f); glVertex2f(gx1, camY + camH * 0.27f);
+    glEnd();
+    // yellow — medium zone
+    glColor4f(1.00f, 0.80f, 0.00f, 0.80f);
+    glBegin(GL_LINES);
+    glVertex2f(gx0 - 8, camY + camH * 0.48f); glVertex2f(gx1 + 8, camY + camH * 0.48f);
+    glEnd();
+    // red — close zone
+    glColor4f(1.00f, 0.15f, 0.15f, 0.80f);
+    glBegin(GL_LINES);
+    glVertex2f(gx0 - 18, camY + camH * 0.68f); glVertex2f(gx1 + 18, camY + camH * 0.68f);
+    glEnd();
+    // Convergence lines from bottom centre
+    float midX = camX + camW * 0.5f;
+    glColor4f(1.00f, 0.80f, 0.00f, 0.55f);
+    glBegin(GL_LINES);
+    glVertex2f(midX - 18, (float)camY + 6);
+    glVertex2f((float)camX + 8, camY + camH * 0.75f);
+    glVertex2f(midX + 18, (float)camY + 6);
+    glVertex2f((float)(camX + camW) - 8, camY + camH * 0.75f);
+    glEnd();
+    glLineWidth(1.0f);
+
+    glDisable(GL_BLEND);
+
+    // "REAR CAM" label
+    GLuint fontBase = EngineCore::getFontListBase();
+    if (fontBase != 0)
+    {
+        glColor3f(1.0f, 1.0f, 0.0f);
+        renderText((float)camX + 5, (float)(camY + camH) - 16, "REAR CAM", fontBase);
+    }
+
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_LIGHTING);
 

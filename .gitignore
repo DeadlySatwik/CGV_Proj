@@ -5,3 +5,5 @@
 bin/
 obj/traffic
 traffic
+reports/*.md
+my-current-uncommitted-changes.patch

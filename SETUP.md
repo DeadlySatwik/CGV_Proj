@@ -56,9 +56,7 @@ The project should be compiled with:
 ## Quick build check
 
 ```bash
-make clean
-make -j$(nproc)
-./traffic
+make clean && make -j$(nproc) && ./traffic
 ```
 
 ## Notes

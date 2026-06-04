@@ -22,6 +22,12 @@ public:
         INPUT_HORN       = (1 << 4)
     };
 
+    // Indicator and light state (toggled by keyPressed)
+    bool indicatorLeft;
+    bool indicatorRight;
+    bool headlightsOn;
+    float indicatorTimer; // blink cycle 0–1 s
+
     void handleInput(unsigned int inputMap, const float delta);
 
     bool isHonking;
@@ -30,6 +36,9 @@ public:
     // Camera helpers for 3rd person view
     virtual Vec3 getCameraPos() const;
     virtual Vec3 getCameraTarget() const;
+    // Rear backup camera (used when reversing)
+    virtual Vec3 getRearCameraPos() const;
+    virtual Vec3 getRearCameraTarget() const;
     Vec3 getForward() const;
 
     // Road constraint — set by Simulator before handleInput

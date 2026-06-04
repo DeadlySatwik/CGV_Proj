@@ -28,6 +28,11 @@ PlayerCar::PlayerCar(Vec3 startPos)
     isHonking = false;
     wasHonking = false;
 
+    indicatorLeft  = false;
+    indicatorRight = false;
+    headlightsOn   = false;
+    indicatorTimer = 0.0f;
+
     // Distinct bright blue color so player car stands out
     carColor = Vec3(0.15f, 0.45f, 0.90f);
 
@@ -58,6 +63,11 @@ void PlayerCar::revertPosition()
 
 void PlayerCar::handleInput(unsigned int inputMap, const float delta)
 {
+    // Advance indicator blink timer (1 s cycle: 0.5 s on, 0.5 s off)
+    indicatorTimer += delta;
+    if (indicatorTimer >= 1.0f)
+        indicatorTimer -= 1.0f;
+
     wasHonking = isHonking;
     isHonking = (inputMap & INPUT_HORN) != 0;
 
@@ -210,6 +220,38 @@ Vec3 PlayerCar::getCameraTarget() const
     return target;
 }
 
+Vec3 PlayerCar::getRearCameraPos() const
+{
+    Vec3 fwd = getForward();
+    float glX = pos.x * 10.0f;
+    float glY = pos.y * 10.0f;
+    float glZ = pos.z * -10.0f;
+    float glFwdX = fwd.x;
+    float glFwdZ = -fwd.z;
+
+    Vec3 camPos;
+    camPos.x = glX - glFwdX * 2.0f;  // just behind the trunk
+    camPos.y = glY + 2.8f;            // bumper-cam height
+    camPos.z = glZ - glFwdZ * 2.0f;
+    return camPos;
+}
+
+Vec3 PlayerCar::getRearCameraTarget() const
+{
+    Vec3 fwd = getForward();
+    float glX = pos.x * 10.0f;
+    float glY = pos.y * 10.0f;
+    float glZ = pos.z * -10.0f;
+    float glFwdX = fwd.x;
+    float glFwdZ = -fwd.z;
+
+    Vec3 target;
+    target.x = glX - glFwdX * 18.0f; // looking far behind
+    target.y = glY - 0.8f;            // slight downward tilt
+    target.z = glZ - glFwdZ * 18.0f;
+    return target;
+}
+
 // ========== DRAWING ==========
 // Reuses the same visual style as the AI Car class but with player color
 
@@ -300,6 +342,7 @@ void PlayerCar::draw()
     // ========== HEADLIGHTS ==========
     int carPhase = Simulator::getInstance().getDayPhase();
     bool nightDriving = (carPhase == 0 || carPhase == 1 || carPhase == 5 || carPhase == 6);
+    bool lightsActive = nightDriving || headlightsOn;
 
     setColor(0.80f, 0.80f, 0.82f);
     pushMatrix();
@@ -311,7 +354,7 @@ void PlayerCar::draw()
     drawCube(0.006f, 0.018f, 0.022f);
     popMatrix();
 
-    if (nightDriving)
+    if (lightsActive)
         setColor(1.0f, 0.98f, 0.85f);
     else
         setColor(0.95f, 0.93f, 0.80f);
@@ -324,7 +367,7 @@ void PlayerCar::draw()
     drawCube(0.003f, 0.014f, 0.018f);
     popMatrix();
 
-    if (nightDriving)
+    if (lightsActive)
     {
         setColor(0.90f, 0.85f, 0.60f);
         pushMatrix();
@@ -338,7 +381,7 @@ void PlayerCar::draw()
     }
 
     // ========== TAILLIGHTS ==========
-    if (nightDriving)
+    if (lightsActive)
         setColor(0.80f, 0.05f, 0.05f);
     else
         setColor(0.55f, 0.02f, 0.02f);
@@ -391,6 +434,38 @@ void PlayerCar::draw()
     translate(0.04f, 0.068f, -0.061f);
     drawCube(0.008f, 0.006f, 0.002f);
     popMatrix();
+
+    // ========== TURN INDICATORS (blinking amber) ==========
+    bool indBlink = (indicatorTimer < 0.5f);
+
+    if (indicatorLeft && indBlink)
+    {
+        setColor(1.0f, 0.60f, 0.0f); // amber
+        // Front-left
+        pushMatrix();
+        translate(0.110f, 0.05f, -0.042f);
+        drawCube(0.006f, 0.014f, 0.014f);
+        popMatrix();
+        // Rear-left
+        pushMatrix();
+        translate(-0.110f, 0.05f, -0.042f);
+        drawCube(0.006f, 0.014f, 0.014f);
+        popMatrix();
+    }
+    if (indicatorRight && indBlink)
+    {
+        setColor(1.0f, 0.60f, 0.0f); // amber
+        // Front-right
+        pushMatrix();
+        translate(0.110f, 0.05f, 0.042f);
+        drawCube(0.006f, 0.014f, 0.014f);
+        popMatrix();
+        // Rear-right
+        pushMatrix();
+        translate(-0.110f, 0.05f, 0.042f);
+        drawCube(0.006f, 0.014f, 0.014f);
+        popMatrix();
+    }
 
     // ========== PLAYER INDICATOR — roof light bar ==========
     setColor(0.1f, 0.6f, 1.0f);

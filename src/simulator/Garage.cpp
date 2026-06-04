@@ -1,5 +1,5 @@
 ///   File: Garage.cpp
-
+#include <cctype>
 #include "Garage.h"
 #include "Simulator.h"
 using namespace std;
@@ -533,6 +533,61 @@ void Garage::draw()
         popMatrix(); // end OUT gate panel
 
         popMatrix(); // end building transform
+    }
+
+    // ---- Garage code sign post ----
+    {
+        float postH   = 0.36f;
+        float boardH  = 0.045f;
+        float boardW  = 0.13f;
+
+        // Pole
+        setColor(0.12f, 0.12f, 0.12f);
+        pushMatrix();
+        translate(0.0f, postH * 0.5f, 0.0f);
+        drawCube(0.010f, postH, 0.010f);
+        popMatrix();
+
+        // Sign board — orange for car garages, blue for bus, green for bike
+        Vec3 boardCol(0.85f, 0.35f, 0.05f);
+        if (!id.empty()) {
+            char c = (char)::toupper((unsigned char)id[0]);
+            if (c == 'G') {
+                // derive colour from the last digit of the id
+                unsigned int h2 = 0;
+                for (size_t ci = 0; ci < id.size(); ci++)
+                    h2 = h2 * 31u + (unsigned char)id[ci];
+                int col = h2 % 3;
+                if (col == 0) boardCol = Vec3(0.80f, 0.30f, 0.05f); // orange
+                else if (col == 1) boardCol = Vec3(0.05f, 0.35f, 0.75f); // blue
+                else               boardCol = Vec3(0.05f, 0.60f, 0.20f); // green
+            }
+        }
+        setColor(boardCol);
+        pushMatrix();
+        translate(0.0f, postH + boardH * 0.5f, 0.0f);
+        drawCube(boardW, boardH, 0.014f);
+        popMatrix();
+
+        // White trim border on board
+        setColor(1.0f, 1.0f, 1.0f);
+        pushMatrix();
+        translate(0.0f, postH + boardH * 0.5f, 0.008f);
+        drawCube(boardW + 0.006f, boardH + 0.006f, 0.002f);
+        popMatrix();
+
+        // 3D text label
+        GLuint fnt = EngineCore::getFontListBase();
+        if (fnt != 0 && !id.empty()) {
+            glDisable(GL_LIGHTING);
+            glDisable(GL_DEPTH_TEST);
+            glColor3f(1.0f, 1.0f, 1.0f);
+            glRasterPos3f(-0.030f, postH + boardH * 1.1f + 0.008f, 0.010f);
+            glListBase(fnt);
+            glCallLists((GLsizei)id.size(), GL_UNSIGNED_BYTE, id.c_str());
+            glEnable(GL_DEPTH_TEST);
+            glEnable(GL_LIGHTING);
+        }
     }
 
     translate(-pos);
